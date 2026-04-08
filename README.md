@@ -1,4 +1,4 @@
-# Smart Notice Broad
+# RunaNet
 
 Digital notice board platform with:
 
