@@ -101,7 +101,7 @@ class _RpicamStream:
 
 
 class PresenceDetector(threading.Thread):
-    def __init__(self, backend_port: int, poll_interval: float = 0.5,
+    def __init__(self, backend_port: int, poll_interval: float = 0.2,
                  grace_seconds: float = 20.0) -> None:
         super().__init__(daemon=True, name="presence-detector")
         self._backend = f"http://127.0.0.1:{backend_port}/api/presence"
@@ -208,6 +208,7 @@ class PresenceDetector(threading.Thread):
                     print(f"  presence: capture error: {e}")
                     gray = None
 
+                face_info = None
                 if gray is not None:
                     # Tuned for faces at ~1-3m from the board with the
                     # Camera Module 3 Wide FOV. minSize filters out framed
@@ -218,11 +219,22 @@ class PresenceDetector(threading.Thread):
                     )
                     if len(faces) > 0:
                         last_face_time = time.time()
+                        # Pick the biggest face (closest viewer wins when
+                        # several are in frame — the lockscreen emoji has
+                        # one pair of eyes, it can only look at one person).
+                        fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+                        # Mirror x so "viewer moves right" → x increases,
+                        # which makes the emoji's gaze follow naturally.
+                        face_info = {
+                            "x":    float(1.0 - (fx + fw / 2) / CAPTURE_W),
+                            "y":    float((fy + fh / 2) / CAPTURE_H),
+                            "area": float((fw * fh) / (CAPTURE_W * CAPTURE_H)),
+                        }
 
                 looking = (time.time() - last_face_time) <= self._grace
                 # Post every tick - heartbeat keeps `updated_at` fresh so
                 # the backend's stale-detector doesn't falsely unlock.
-                self._post(looking, source)
+                self._post(looking, source, face=face_info)
                 self._last_looking = looking
                 self._stop.wait(self._poll)
         finally:
@@ -235,11 +247,13 @@ class PresenceDetector(threading.Thread):
                 pass
             self._post(False, source, enabled=False)
 
-    def _post(self, looking: bool, source: str, enabled: bool = True) -> None:
+    def _post(self, looking: bool, source: str, enabled: bool = True,
+              face: Optional[dict] = None) -> None:
         body = json.dumps({
             "looking": bool(looking),
             "enabled": bool(enabled),
             "source":  source,
+            "face":    face,
         }).encode()
         req = urllib.request.Request(
             self._backend, data=body,

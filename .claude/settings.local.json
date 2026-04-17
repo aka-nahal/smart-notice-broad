@@ -69,7 +69,18 @@
       "Bash(powershell -NoProfile -Command \"\\(Invoke-WebRequest -Uri 'http://127.0.0.1:3000/display' -UseBasicParsing -TimeoutSec 10\\).StatusCode; \\(Invoke-WebRequest -Uri 'http://127.0.0.1:8000/api/presence' -UseBasicParsing -Method POST -Body '{\\\\\"looking\\\\\":false,\\\\\"enabled\\\\\":true,\\\\\"source\\\\\":\\\\\"manual\\\\\"}' -ContentType 'application/json'\\).Content\")",
       "Bash(bash -n install-rpi-lite.sh)",
       "Bash(python -c \"import py_compile; py_compile.compile\\('presence_detector.py', doraise=True\\); print\\('ok'\\)\")",
-      "Bash(python -c \"import py_compile; py_compile.compile\\('launcher.py', doraise=True\\); py_compile.compile\\('presence_detector.py', doraise=True\\); print\\('ok'\\)\")"
+      "Bash(python -c \"import py_compile; py_compile.compile\\('launcher.py', doraise=True\\); py_compile.compile\\('presence_detector.py', doraise=True\\); print\\('ok'\\)\")",
+      "Bash(curl -s https://registry.npmjs.org/jeelizweboji)",
+      "Bash(curl -s https://registry.npmjs.org/jeelizfacetransfer)",
+      "Bash(curl -s https://registry.npmjs.org/-/v1/search?text=jeeliz)",
+      "Bash(curl -s https://api.github.com/repos/jeeliz/jeelizWeboji)",
+      "Bash(curl -s https://api.github.com/repos/jeeliz/jeelizWeboji/contents/dist)",
+      "Bash(curl -s https://api.github.com/repos/jeeliz/jeelizWeboji/contents/neuralNets)",
+      "Bash(curl -s https://raw.githubusercontent.com/jeeliz/jeelizWeboji/master/README.md)",
+      "Bash(curl -s https://api.github.com/repos/jeeliz/jeelizWeboji/contents/)",
+      "Bash(curl -s https://api.github.com/repos/jeeliz/jeelizWeboji/contents/doc)",
+      "Bash(curl -s https://raw.githubusercontent.com/jeeliz/jeelizWeboji/master/LICENSE)",
+      "Bash(curl -s https://registry.npmjs.org/-/v1/search?text=jeelizFaceExpressions)"
     ]
   }
 }

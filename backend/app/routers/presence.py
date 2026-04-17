@@ -18,18 +18,29 @@ from pydantic import BaseModel
 router = APIRouter()
 
 
+class Face(BaseModel):
+    """Most-recent detected face bbox, in normalized frame coordinates.
+    `x` is mirrored so that a viewer physically moving to their right
+    makes `x` increase — that matches the emoji's sense of "look right"."""
+    x: float      # 0..1 mirrored center x
+    y: float      # 0..1 center y
+    area: float   # bbox area / frame area; proxy for closeness
+
+
 class PresenceState(BaseModel):
     looking: bool = False
     enabled: bool = False
     last_seen: Optional[float] = None
     updated_at: float = 0.0
     source: Optional[str] = None
+    face: Optional[Face] = None
 
 
 class PresenceUpdate(BaseModel):
     looking: bool
     enabled: bool = True
     source: Optional[str] = None
+    face: Optional[Face] = None
 
 
 _state = PresenceState()
@@ -58,5 +69,6 @@ def post_presence(update: PresenceUpdate) -> PresenceState:
         last_seen=now if update.looking else _state.last_seen,
         updated_at=now,
         source=update.source,
+        face=update.face,
     )
     return _state
