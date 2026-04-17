@@ -1,9 +1,5 @@
-import { DisplayCanvas } from "@/components/display-canvas"
+import { redirect } from "next/navigation"
 
 export default function HomePage() {
-  return (
-    <div className="fixed inset-0 bg-black">
-      <DisplayCanvas />
-    </div>
-  )
+  redirect("/admin")
 }

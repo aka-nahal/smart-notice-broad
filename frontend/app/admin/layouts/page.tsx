@@ -210,7 +210,6 @@ export default function LayoutsPage() {
         grid_rows: layout.versions[0]?.grid_rows ?? 8,
         gap_px: layout.versions[0]?.gap_px ?? 8,
       })
-      // Clone tiles from source
       const srcVer = layout.versions[0]
       const dstVer = newLayout.versions[0]
       if (srcVer && dstVer) {
@@ -242,7 +241,7 @@ export default function LayoutsPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 dark:border-zinc-700 border-t-blue-500" />
       </div>
     )
   }
@@ -251,7 +250,7 @@ export default function LayoutsPage() {
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Layouts</h1>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Layouts</h1>
           <p className="mt-1 text-sm text-zinc-500">Create and manage display layouts for different scenarios</p>
         </div>
         <button onClick={() => setShowCreate(true)}
@@ -262,10 +261,10 @@ export default function LayoutsPage() {
 
       {/* Create panel */}
       {showCreate && (
-        <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+        <div className="mb-8 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-zinc-200">Create New Layout</h2>
-            <button onClick={() => setShowCreate(false)} className="text-zinc-500 hover:text-zinc-300">&times;</button>
+            <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Create New Layout</h2>
+            <button onClick={() => setShowCreate(false)} className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">&times;</button>
           </div>
 
           {/* Presets grid */}
@@ -276,22 +275,22 @@ export default function LayoutsPage() {
                 key={preset.name}
                 onClick={() => createFromPreset(preset)}
                 disabled={creating}
-                className="group rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 text-left transition-all hover:border-blue-500/40 hover:bg-zinc-800 disabled:opacity-50"
+                className="group rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4 text-left transition-all hover:border-blue-500/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xl">{preset.icon}</span>
-                  <span className="text-sm font-semibold text-zinc-200 group-hover:text-blue-400">{preset.name}</span>
+                  <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 group-hover:text-blue-500 dark:group-hover:text-blue-400">{preset.name}</span>
                 </div>
                 <p className="text-[11px] text-zinc-500 leading-snug">{preset.description}</p>
-                <div className="mt-2 flex items-center gap-2 text-[10px] text-zinc-600">
+                <div className="mt-2 flex items-center gap-2 text-[10px] text-zinc-500 dark:text-zinc-600">
                   <span>{preset.cols}×{preset.rows}</span>
                   <span>·</span>
                   <span>{preset.tiles.length} tiles</span>
                 </div>
                 {/* Mini preview */}
-                <div className="mt-2 relative h-8 rounded border border-zinc-700 bg-zinc-900 overflow-hidden">
+                <div className="mt-2 relative h-8 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden">
                   {preset.tiles.map((t, i) => (
-                    <div key={i} className="absolute bg-zinc-600/40 rounded-[1px]" style={{
+                    <div key={i} className="absolute bg-zinc-400/40 dark:bg-zinc-600/40 rounded-[1px]" style={{
                       left: `${(t.grid_x / preset.cols) * 100}%`,
                       top: `${(t.grid_y / preset.rows) * 100}%`,
                       width: `${(t.grid_w / preset.cols) * 100}%`,
@@ -309,27 +308,27 @@ export default function LayoutsPage() {
             <label className="flex flex-col gap-1">
               <span className="text-[10px] text-zinc-500">Name</span>
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="My Layout"
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500/50 w-48" />
+                className="rounded-md bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-blue-500/50 w-48" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[10px] text-zinc-500">Description</span>
               <input value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Optional"
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500/50 w-48" />
+                className="rounded-md bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-blue-500/50 w-48" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[10px] text-zinc-500">Cols</span>
               <input type="number" value={newCols} min={1} max={24} onChange={(e) => setNewCols(+e.target.value)}
-                className="rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 w-16 tabular-nums" />
+                className="rounded-md bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 w-16 tabular-nums" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[10px] text-zinc-500">Rows</span>
               <input type="number" value={newRows} min={1} max={24} onChange={(e) => setNewRows(+e.target.value)}
-                className="rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 w-16 tabular-nums" />
+                className="rounded-md bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 w-16 tabular-nums" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[10px] text-zinc-500">Gap</span>
               <input type="number" value={newGap} min={0} max={32} onChange={(e) => setNewGap(+e.target.value)}
-                className="rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 w-16 tabular-nums" />
+                className="rounded-md bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 w-16 tabular-nums" />
             </label>
             <button onClick={createCustom} disabled={!newName.trim() || creating}
               className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
@@ -341,10 +340,10 @@ export default function LayoutsPage() {
 
       {/* Layout cards */}
       {layouts.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-800 p-12 text-center">
+        <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-800 p-12 text-center">
           <span className="text-4xl block mb-3">📋</span>
-          <p className="text-sm text-zinc-400">No layouts yet.</p>
-          <p className="text-xs text-zinc-600 mt-1">Click &ldquo;+ New Layout&rdquo; to get started with a preset.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">No layouts yet.</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-1">Click &ldquo;+ New Layout&rdquo; to get started with a preset.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -356,8 +355,10 @@ export default function LayoutsPage() {
 
             return (
               <div key={layout.id}
-                className={`rounded-xl border bg-zinc-900/50 p-5 transition-all ${
-                  isActive ? "border-emerald-500/30" : "border-zinc-800 hover:border-zinc-700"
+                className={`rounded-xl border bg-white dark:bg-zinc-900/50 p-5 transition-all ${
+                  isActive
+                    ? "border-emerald-500/40"
+                    : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
                 }`}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
@@ -366,9 +367,9 @@ export default function LayoutsPage() {
                         onChange={(e) => setRenameValue(e.target.value)}
                         onBlur={() => saveRename(layout.id)}
                         onKeyDown={(e) => { if (e.key === "Enter") saveRename(layout.id); if (e.key === "Escape") setRenamingId(null) }}
-                        className="w-full rounded bg-zinc-800 px-2 py-0.5 text-sm font-semibold text-zinc-200 outline-none border border-blue-500/50" />
+                        className="w-full rounded bg-white dark:bg-zinc-800 px-2 py-0.5 text-sm font-semibold text-zinc-800 dark:text-zinc-200 outline-none border border-blue-500/50" />
                     ) : (
-                      <h3 className="font-semibold text-zinc-200 truncate cursor-pointer hover:text-blue-400"
+                      <h3 className="font-semibold text-zinc-800 dark:text-zinc-200 truncate cursor-pointer hover:text-blue-500 dark:hover:text-blue-400"
                         onDoubleClick={() => { setRenamingId(layout.id); setRenameValue(layout.name) }}>
                         {layout.name}
                       </h3>
@@ -376,8 +377,8 @@ export default function LayoutsPage() {
                     {layout.description && <p className="mt-0.5 text-xs text-zinc-500 truncate">{layout.description}</p>}
                   </div>
                   {isActive && (
-                    <span className="shrink-0 ml-2 flex items-center gap-1 rounded-full bg-emerald-900/30 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="shrink-0 ml-2 flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       Active
                     </span>
                   )}
@@ -385,15 +386,15 @@ export default function LayoutsPage() {
 
                 {/* Minimap */}
                 {ver && (
-                  <div className="relative h-16 rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden mb-3">
+                  <div className="relative h-16 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 overflow-hidden mb-3">
                     {ver.tiles.map((t) => (
                       <div key={t.id} className={`absolute rounded-[2px] ${
-                        t.tile_type === "banner" ? "bg-sky-500/30" :
-                        t.tile_type === "emergency" ? "bg-red-500/30" :
-                        t.tile_type === "clock" ? "bg-violet-500/30" :
-                        t.tile_type === "image" ? "bg-emerald-500/30" :
-                        t.tile_type === "ticker" ? "bg-amber-500/30" :
-                        "bg-blue-500/30"
+                        t.tile_type === "banner" ? "bg-sky-500/40" :
+                        t.tile_type === "emergency" ? "bg-red-500/40" :
+                        t.tile_type === "clock" ? "bg-violet-500/40" :
+                        t.tile_type === "image" ? "bg-emerald-500/40" :
+                        t.tile_type === "ticker" ? "bg-amber-500/40" :
+                        "bg-blue-500/40"
                       }`} style={{
                         left: `${(t.grid_x / ver.grid_cols) * 100}%`,
                         top: `${(t.grid_y / ver.grid_rows) * 100}%`,
@@ -414,25 +415,25 @@ export default function LayoutsPage() {
                 {/* Actions */}
                 <div className="flex flex-wrap gap-1.5">
                   <Link href={`/admin/builder?layout=${layout.id}`}
-                    className="rounded-md bg-blue-600/10 border border-blue-500/20 px-3 py-1.5 text-[11px] font-medium text-blue-400 hover:bg-blue-600/20">
+                    className="rounded-md bg-blue-500/10 border border-blue-500/30 px-3 py-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/20">
                     Edit in Builder
                   </Link>
                   {!isActive && (
                     <button onClick={() => setActive(layout)}
-                      className="rounded-md bg-emerald-600/10 border border-emerald-500/20 px-3 py-1.5 text-[11px] font-medium text-emerald-400 hover:bg-emerald-600/20">
+                      className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20">
                       Set as Active
                     </button>
                   )}
                   <button onClick={() => duplicateLayout(layout)}
-                    className="rounded-md bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-[11px] text-zinc-400 hover:bg-zinc-700">
+                    className="rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[11px] text-zinc-700 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700">
                     Duplicate
                   </button>
                   <button onClick={() => { setRenamingId(layout.id); setRenameValue(layout.name) }}
-                    className="rounded-md bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-[11px] text-zinc-400 hover:bg-zinc-700">
+                    className="rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[11px] text-zinc-700 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700">
                     Rename
                   </button>
                   <button onClick={() => deleteLayout(layout.id)}
-                    className="rounded-md bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-[11px] text-red-400 hover:bg-red-900/20 hover:border-red-500/30">
+                    className="rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[11px] text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/30">
                     Delete
                   </button>
                 </div>

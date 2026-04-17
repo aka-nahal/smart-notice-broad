@@ -124,6 +124,12 @@ interface DisplayProps {
   showDots?: boolean
   showArrows?: boolean
   autoplay?: boolean
+  /** Show a thin animated progress bar under the slide (timer indicator). */
+  showProgress?: boolean
+  /** Apply a slow zoom/pan ("Ken Burns") to image slides. */
+  kenBurns?: boolean
+  /** Image / video fit: "cover" crops, "contain" letterboxes, "fill" stretches to exact size. */
+  fit?: "cover" | "contain" | "fill"
 }
 
 export function CarouselDisplay({
@@ -133,8 +139,12 @@ export function CarouselDisplay({
   showDots = true,
   showArrows = false,
   autoplay = true,
+  showProgress = true,
+  kenBurns = false,
+  fit = "cover",
 }: DisplayProps) {
   const [current, setCurrent] = useState(0)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [direction, setDirection] = useState<"next" | "prev">("next")
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -179,7 +189,9 @@ export function CarouselDisplay({
       <div key={current} className={`absolute inset-0 ${transitionCls}`}>
         {slide.type === "image" && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={slide.url} alt={slide.caption ?? ""} className="h-full w-full object-cover" loading="lazy" />
+          <img src={slide.url} alt={slide.caption ?? ""}
+            className={`h-full w-full ${fit === "fill" ? "object-fill" : fit === "contain" ? "object-contain" : "object-cover"} ${kenBurns && fit !== "fill" ? "animate-ken-burns" : ""}`}
+            loading="lazy" />
         )}
         {slide.type === "youtube" && ytId && (
           <iframe
@@ -191,12 +203,26 @@ export function CarouselDisplay({
           />
         )}
         {slide.type === "pdf" && (
-          <iframe src={slide.url} className="h-full w-full bg-white" title={slide.caption ?? "PDF"} />
+          <iframe
+            src={`${slide.url}#toolbar=0&navpanes=0&statusbar=0&view=Fit`}
+            className="h-full w-full bg-white" title={slide.caption ?? "PDF"} />
         )}
         {slide.type === "video" && (
-          <video src={slide.url} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+          <video src={slide.url} autoPlay muted loop playsInline
+            className={`h-full w-full ${fit === "fill" ? "object-fill" : fit === "contain" ? "object-contain" : "object-cover"}`} />
         )}
       </div>
+
+      {/* Progress bar */}
+      {showProgress && autoplay && count > 1 && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
+          <div
+            key={`${current}-${interval}`}
+            className="h-full bg-white/70"
+            style={{ animation: `carousel-progress ${interval}s linear forwards` }}
+          />
+        </div>
+      )}
 
       {/* Caption */}
       {slide.caption && (

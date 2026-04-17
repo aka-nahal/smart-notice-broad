@@ -7,6 +7,10 @@ import { ClockWidget } from "@/components/clock-widget"
 import { WeatherWidget } from "@/components/weather-widget"
 import { CarouselDisplay, parseSlides } from "@/components/carousel-widget"
 import { MediaImage } from "@/components/media-image"
+import { SensorWidget } from "@/components/sensor-widget"
+import { TimetableWidget } from "@/components/timetable-widget"
+import { VideoPlayer } from "@/components/video-player"
+import { PdfViewer } from "@/components/pdf-viewer"
 
 const DEFAULT_REFRESH_MS = 30_000
 
@@ -24,7 +28,7 @@ function tileSizeClass(w: number, h: number): "xs" | "sm" | "md" | "lg" | "xl" {
   return "xl"
 }
 
-function WidgetContent({ type, tileW, tileH, config }: { type: string; tileW: number; tileH: number; config: TileConfig }) {
+function WidgetContent({ type, tileW, tileH, config, mediaUrl }: { type: string; tileW: number; tileH: number; config: TileConfig; mediaUrl?: string | null }) {
   const size = tileSizeClass(tileW, tileH)
 
   if (type === "clock")
@@ -80,55 +84,63 @@ function WidgetContent({ type, tileW, tileH, config }: { type: string; tileW: nu
         showDots={config.carouselShowDots !== "false" && config.carouselShowDots !== false}
         showArrows={config.carouselShowArrows === "true" || config.carouselShowArrows === true}
         autoplay={config.carouselAutoplay !== "false" && config.carouselAutoplay !== false}
+        showProgress={config.carouselShowProgress !== "false" && config.carouselShowProgress !== false}
+        kenBurns={config.carouselKenBurns === "true" || config.carouselKenBurns === true}
+        fit={(config.carouselFit as "cover" | "contain" | "fill") || "cover"}
       />
     )
   }
   if (type === "image" && config.imageUrl) {
+    const fit = (config.imageFit as string) || "cover"
+    const fitCls = fit === "fill" ? "object-fill" : fit === "contain" ? "object-contain" : "object-cover"
     return (
-      <MediaImage src={config.imageUrl} alt={config.imageAlt} className="absolute inset-0 h-full w-full object-cover" />
+      <MediaImage src={config.imageUrl} alt={config.imageAlt} className={`absolute inset-0 h-full w-full ${fitCls}`} />
     )
   }
   if (type === "video") {
-    const videoUrl = config.videoUrl as string | undefined
+    const videoUrl = (config.videoUrl as string | undefined) || mediaUrl || undefined
     if (!videoUrl) return <p className="text-sm text-zinc-500">No video configured</p>
-
-    // Check for YouTube
-    const ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/)
-    const ytId = ytMatch?.[1] ?? null
-
-    if (ytId) {
-      const autoplay = config.videoAutoplay !== "false"
-      const loop = config.videoLoop !== "false"
-      const params = new URLSearchParams({
-        autoplay: autoplay ? "1" : "0",
-        mute: "1",
-        loop: loop ? "1" : "0",
-        playlist: ytId,
-        controls: config.videoControls ? "1" : "0",
-        modestbranding: "1",
-        rel: "0",
-      })
-      return (
-        <iframe
-          src={`https://www.youtube-nocookie.com/embed/${ytId}?${params}`}
-          className="absolute inset-0 h-full w-full"
-          allow="autoplay; encrypted-media"
-          allowFullScreen
-          frameBorder="0"
-        />
-      )
-    }
-
     return (
-      <video
-        src={videoUrl}
+      <VideoPlayer
+        url={videoUrl}
         poster={config.videoPoster as string | undefined}
-        autoPlay={config.videoAutoplay !== "false"}
-        loop={config.videoLoop !== "false"}
-        muted
-        playsInline
-        controls={!!config.videoControls}
-        className="absolute inset-0 h-full w-full object-cover"
+        autoplay={config.videoAutoplay !== "false" && config.videoAutoplay !== false}
+        loop={config.videoLoop !== "false" && config.videoLoop !== false}
+        controls={config.videoControls === "true" || config.videoControls === true}
+        fit={(config.videoFit as "cover" | "contain" | "fill") || "cover"}
+      />
+    )
+  }
+  if (type === "pdf") {
+    const pdfUrl = (config.pdfUrl as string | undefined) || mediaUrl || undefined
+    if (!pdfUrl) return <p className="text-sm text-zinc-500">No document configured</p>
+    return (
+      <PdfViewer
+        url={pdfUrl}
+        autoAdvanceSec={typeof config.pdfAutoAdvanceSec === "number" ? config.pdfAutoAdvanceSec : 0}
+        page={typeof config.pdfPage === "number" ? config.pdfPage : 1}
+        totalPages={typeof config.pdfTotalPages === "number" ? config.pdfTotalPages : undefined}
+        showChrome={config.pdfShowChrome !== "false" && config.pdfShowChrome !== false}
+        fit={(config.pdfFit as "page" | "width" | "height") || "page"}
+      />
+    )
+  }
+  if (type === "sensor") {
+    return (
+      <SensorWidget
+        sensorType={config.sensorType as string || "all"}
+        refreshSec={typeof config.sensorRefreshSec === "number" ? config.sensorRefreshSec : 30}
+      />
+    )
+  }
+  if (type === "timetable") {
+    const ttId = config.timetableId
+    if (!ttId) return <p className="text-sm text-zinc-500">Set timetableId in tile config</p>
+    return (
+      <TimetableWidget
+        timetableId={ttId as number}
+        showTeacher={config.timetableShowTeacher !== "false" && config.timetableShowTeacher !== false}
+        showRoom={config.timetableShowRoom !== "false" && config.timetableShowRoom !== false}
       />
     )
   }
@@ -156,33 +168,45 @@ function NoticeContent({
     size === "md" ? "text-sm line-clamp-5" :
     size === "sm" ? "text-xs line-clamp-3" : "text-xs line-clamp-2"
 
+  const align = (config.textAlign as string) ?? "left"
+  const valign = (config.verticalAlign as string) ?? "top"
+  const weight = (config.titleWeight as string) ?? "semibold"
+
+  const alignCls    = align === "center" ? "text-center"  : align === "right"  ? "text-right"  : "text-left"
+  const valignCls   = valign === "center" ? "justify-center" : valign === "bottom" ? "justify-end" : "justify-start"
+  const itemAlignCls = align === "center" ? "items-center" : align === "right"  ? "items-end"   : "items-start"
+  const weightCls   = weight === "normal"     ? "font-normal"     :
+                      weight === "medium"     ? "font-medium"     :
+                      weight === "bold"       ? "font-bold"       :
+                      weight === "extrabold"  ? "font-extrabold"  : "font-semibold"
+
   const titleStyle: React.CSSProperties = {
     ...(config.fontFamily && { fontFamily: config.fontFamily }),
     ...(config.titleSize && { fontSize: config.titleSize }),
+    ...(config.titleColor && { color: config.titleColor as string }),
   }
   const bodyStyle: React.CSSProperties = {
     ...(config.fontFamily && { fontFamily: config.fontFamily }),
     ...(config.bodySize && { fontSize: config.bodySize }),
+    ...(config.textColor && { color: config.textColor as string }),
   }
 
   return (
-    <>
-      <div className="mb-1 flex items-center gap-2">
-        {notice.category && (
-          <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-400">
-            {notice.category}
-          </span>
-        )}
-      </div>
-      <h2 className={`text-balance font-semibold leading-snug text-white ${titleCls}`} style={titleStyle}>
+    <div className={`flex h-full w-full flex-col gap-1 ${valignCls} ${itemAlignCls}`}>
+      {notice.category && (
+        <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-400">
+          {notice.category}
+        </span>
+      )}
+      <h2 className={`text-balance leading-snug text-white ${weightCls} ${titleCls} ${alignCls}`} style={titleStyle}>
         {notice.title}
       </h2>
       {(notice.summary || notice.body) && (
-        <p className={`mt-2 leading-relaxed ${hasMedia ? "text-zinc-200" : "text-zinc-300"} ${bodyCls}`} style={bodyStyle}>
+        <p className={`mt-2 leading-relaxed ${hasMedia ? "text-zinc-200" : "text-zinc-300"} ${bodyCls} ${alignCls}`} style={bodyStyle}>
           {notice.summary ?? notice.body}
         </p>
       )}
-    </>
+    </div>
   )
 }
 
@@ -199,7 +223,7 @@ function TileCard({ item }: { item: DisplayTileDTO }) {
     x: tile.grid_x, y: tile.grid_y, w: tile.grid_w, h: tile.grid_h
   })
   const hidden = !is_visible_by_schedule
-  const isWidget = ["clock", "ticker", "banner", "weather", "video", "carousel"].includes(tile.tile_type)
+  const isWidget = ["clock", "ticker", "banner", "weather", "video", "carousel", "sensor", "timetable", "pdf"].includes(tile.tile_type)
   const hasMedia = !!media_url
   const hasNotice = !!notice
   const config = parseTileConfig(tile.config_json)
@@ -209,19 +233,28 @@ function TileCard({ item }: { item: DisplayTileDTO }) {
   const isEmergency = tile.is_emergency_slot || tile.tile_type === "emergency"
   const borderColor = priorityBorderColor(effective_priority, isEmergency)
 
+  const customPad = typeof config.padding === "number" ? `${config.padding}px` : undefined
+  const articleStyle: React.CSSProperties = {
+    gridRow, gridColumn, zIndex: tile.z_index,
+    ...(config.bgColor && { backgroundColor: config.bgColor as string }),
+    ...(customPad && !noPadding && { padding: customPad }),
+  }
+
   return (
     <article
-      className={`relative overflow-hidden rounded-xl border bg-zinc-900/90 shadow-lg backdrop-blur-sm transition-all duration-700 ${borderColor} ${
-        hidden ? "opacity-20" : "opacity-100"
-      } ${noPadding ? "p-0" : "p-4"} ${isEmergency && !hidden ? "animate-pulse-subtle" : ""}`}
-      style={{ gridRow, gridColumn, zIndex: tile.z_index }}
+      className={`relative overflow-hidden rounded-xl border shadow-lg backdrop-blur-sm transition-all duration-700 ${borderColor} ${
+        config.bgColor ? "" : "bg-zinc-900/90"
+      } ${hidden ? "opacity-20" : "opacity-100"} ${
+        noPadding ? "p-0" : customPad ? "" : "p-4"
+      } ${isEmergency && !hidden ? "animate-pulse-subtle" : ""}`}
+      style={articleStyle}
     >
       {isEmergency && !hidden && (
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-600 via-red-500 to-red-600" />
       )}
 
       {isWidget ? (
-        <WidgetContent type={tile.tile_type} tileW={tile.grid_w} tileH={tile.grid_h} config={config} />
+        <WidgetContent type={tile.tile_type} tileW={tile.grid_w} tileH={tile.grid_h} config={config} mediaUrl={media_url} />
       ) : isMediaOnly ? (
         hasMedia ? (
           <MediaImage src={media_url!} alt={notice?.title} className="absolute inset-0 h-full w-full object-cover" />

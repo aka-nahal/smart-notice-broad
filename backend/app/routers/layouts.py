@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.layout import Layout, LayoutVersion
 from app.models.tile import Tile
+from app.services.memcache import display_bundle_cache
 from app.schemas.layout import (
     LayoutCreate,
     LayoutRead,
@@ -286,6 +287,7 @@ async def add_tile(
     db.add(tile)
     await db.commit()
     await db.refresh(tile)
+    display_bundle_cache.invalidate()
     return TileRead.model_validate(tile)
 
 
@@ -315,6 +317,7 @@ async def bulk_update_tiles(
         updated.append(tile)
 
     await db.commit()
+    display_bundle_cache.invalidate()
     result = []
     for tile in updated:
         await db.refresh(tile)
@@ -342,6 +345,7 @@ async def update_tile(
         setattr(tile, k, v)
     await db.commit()
     await db.refresh(tile)
+    display_bundle_cache.invalidate()
     return TileRead.model_validate(tile)
 
 
@@ -360,6 +364,7 @@ async def delete_tile(
         raise HTTPException(status_code=404, detail="Layout version not found")
     await db.delete(tile)
     await db.commit()
+    display_bundle_cache.invalidate()
     return {"status": "ok"}
 
 
@@ -381,4 +386,5 @@ async def publish_version(
     lv.is_published = True
     lv.published_at = datetime.utcnow()
     await db.commit()
+    display_bundle_cache.invalidate()
     return {"status": "published", "layout_version_id": str(version_id)}

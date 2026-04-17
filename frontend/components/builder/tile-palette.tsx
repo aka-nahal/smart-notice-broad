@@ -18,13 +18,16 @@ const TILE_CATEGORIES = [
       { value: "image", label: "Image", icon: "🖼️", desc: "Photo or graphic from library", defaultW: 2, defaultH: 2 },
       { value: "video", label: "Video", icon: "🎬", desc: "Looping video with autoplay", defaultW: 4, defaultH: 3 },
       { value: "carousel", label: "Carousel", icon: "🎠", desc: "Sliding images, PDFs, or YouTube", defaultW: 4, defaultH: 3 },
+      { value: "pdf", label: "Document", icon: "📄", desc: "PDF document, page-by-page viewer", defaultW: 4, defaultH: 4 },
     ],
   },
   {
     label: "Widgets",
     tiles: [
-      { value: "clock", label: "Clock", icon: "🕐", desc: "Live time and date display", defaultW: 2, defaultH: 2 },
-      { value: "weather", label: "Weather", icon: "🌤️", desc: "Live weather from OpenWeather", defaultW: 3, defaultH: 2 },
+      { value: "clock",     label: "Clock",     icon: "🕐", desc: "Live time and date display",        defaultW: 2, defaultH: 2 },
+      { value: "weather",   label: "Weather",   icon: "🌤️", desc: "Live weather from OpenWeather",     defaultW: 3, defaultH: 2 },
+      { value: "sensor",    label: "Sensor",    icon: "📡", desc: "RPi GPIO sensor readings",           defaultW: 2, defaultH: 2 },
+      { value: "timetable", label: "Timetable", icon: "📅", desc: "Today's class schedule tracker",    defaultW: 3, defaultH: 4 },
     ],
   },
 ] as const

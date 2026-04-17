@@ -281,6 +281,7 @@ export const TILE_TYPES = [
   { value: "video", label: "Video", icon: "🎬" },
   { value: "weather", label: "Weather", icon: "🌤️" },
   { value: "carousel", label: "Carousel", icon: "🎠" },
+  { value: "pdf", label: "Document", icon: "📄" },
   { value: "emergency", label: "Emergency", icon: "🚨" },
 ] as const
 
@@ -294,6 +295,7 @@ export const TILE_COLORS: Record<string, string> = {
   emergency: "border-red-500/50 bg-red-500/10",
   weather: "border-teal-500/50 bg-teal-500/10",
   carousel: "border-orange-500/50 bg-orange-500/10",
+  pdf: "border-rose-500/50 bg-rose-500/10",
 }
 
 export const TILE_COLORS_SELECTED: Record<string, string> = {
@@ -306,4 +308,5 @@ export const TILE_COLORS_SELECTED: Record<string, string> = {
   emergency: "border-red-400 bg-red-500/20 ring-1 ring-red-400/50",
   weather: "border-teal-400 bg-teal-500/20 ring-1 ring-teal-400/50",
   carousel: "border-orange-400 bg-orange-500/20 ring-1 ring-orange-400/50",
+  pdf: "border-rose-400 bg-rose-500/20 ring-1 ring-rose-400/50",
 }

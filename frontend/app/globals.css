@@ -3,17 +3,127 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light dark;
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* Crisp text + native font rendering on every platform. */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
+  font-synthesis: none;
+  text-size-adjust: 100%;
 }
 
+/* ---------------------------------------------------------------------------
+   GPU-acceleration helpers — promote elements to their own composited layer
+   so transforms/opacity animations run on the GPU compositor thread.
+--------------------------------------------------------------------------- */
+.gpu {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+.gpu-hover { transition: transform 220ms var(--ease-out-soft), box-shadow 220ms var(--ease-out-soft); }
+.gpu-hover:hover { transform: translate3d(0, -2px, 0); }
+
+/* Friendly focus ring — visible but never harsh. */
+:focus-visible {
+  outline: 2px solid rgb(59 130 246 / 0.6);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Custom scrollbars: thin, friendly, theme-aware. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(161 161 170 / 0.4) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgb(161 161 170 / 0.35);
+  border-radius: 999px;
+  transition: background 200ms;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgb(113 113 122 / 0.55); }
+
+/* ---------------------------------------------------------------------------
+   Keyframes — all transform/opacity only, GPU-friendly.
+--------------------------------------------------------------------------- */
 @keyframes marquee {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+  0%   { transform: translate3d(100%, 0, 0); }
+  100% { transform: translate3d(-100%, 0, 0); }
 }
 .animate-marquee {
   animation: marquee 20s linear infinite;
+  will-change: transform;
+}
+
+@keyframes carousel-progress {
+  from { transform: translate3d(-100%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ken-burns {
+  0%   { transform: scale3d(1, 1, 1)       translate3d(0, 0, 0); }
+  100% { transform: scale3d(1.12, 1.12, 1) translate3d(-2%, -2%, 0); }
+}
+.animate-ken-burns {
+  animation: ken-burns 12s ease-out forwards;
+  will-change: transform;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 420ms var(--ease-out-soft) both;
+  will-change: opacity, transform;
+}
+
+@keyframes shimmer {
+  0%   { transform: translate3d(-100%, 0, 0); }
+  100% { transform: translate3d(100%, 0, 0); }
+}
+.animate-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+  animation: shimmer 1.6s linear infinite;
+  will-change: transform;
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.95); opacity: 0.7; }
+  70%  { transform: scale(1.4);  opacity: 0; }
+  100% { transform: scale(1.4);  opacity: 0; }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 1.8s var(--ease-out-soft) infinite;
+  will-change: transform, opacity;
+}
+
+/* Display canvas wrapper: forces dark scheme regardless of admin theme. */
+.force-dark {
+  color-scheme: dark;
+  @apply bg-black text-zinc-100;
+}
+
+/* Reduced motion: respect user preference. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

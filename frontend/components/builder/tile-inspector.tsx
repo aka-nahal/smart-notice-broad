@@ -234,6 +234,14 @@ export function TileInspector({ tile, notices, spec, isLocked, onUpdate, onDelet
                 onChange={(e) => updateConfig("imageAlt", e.target.value)}
                 placeholder="Description of image" className={inputCls} />
             </Field>
+            <Field label="Fit Mode">
+              <select value={(config.imageFit as string) ?? "cover"} disabled={isLocked}
+                onChange={(e) => updateConfig("imageFit", e.target.value)} className={selectCls}>
+                <option value="cover">Cover (fill, may crop)</option>
+                <option value="contain">Contain (letterbox, no crop)</option>
+                <option value="fill">Fill (stretch to size)</option>
+              </select>
+            </Field>
           </>
         )}
 
@@ -272,6 +280,15 @@ export function TileInspector({ tile, notices, spec, isLocked, onUpdate, onDelet
               <input value={(config.videoPoster as string) ?? ""} disabled={isLocked}
                 onChange={(e) => updateConfig("videoPoster", e.target.value || undefined)}
                 placeholder="Thumbnail shown before play" className={inputCls} />
+            </Field>
+
+            <Field label="Fit Mode">
+              <select value={(config.videoFit as string) ?? "cover"} disabled={isLocked}
+                onChange={(e) => updateConfig("videoFit", e.target.value)} className={selectCls}>
+                <option value="cover">Cover (fill, may crop)</option>
+                <option value="contain">Contain (letterbox, no crop)</option>
+                <option value="fill">Fill (stretch to size)</option>
+              </select>
             </Field>
 
             <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mt-1">Playback Options</p>
@@ -339,6 +356,10 @@ export function TileInspector({ tile, notices, spec, isLocked, onUpdate, onDelet
         {type === "carousel" && (
           <CarouselEditor config={config} updateConfig={updateConfig} disabled={isLocked} />
         )}
+
+        {type === "pdf" && (
+          <PdfEditor config={config} updateConfig={updateConfig} disabled={isLocked} />
+        )}
       </Section>
 
       {/* Position & Size */}
@@ -373,9 +394,53 @@ export function TileInspector({ tile, notices, spec, isLocked, onUpdate, onDelet
           <NumField label="Body Size (px)" value={(config.bodySize as number) ?? 0} min={0} max={48}
             onChange={(v) => updateConfig("bodySize", v || undefined)} disabled={isLocked} />
         </div>
+        <Field label="Title Weight">
+          <select value={(config.titleWeight as string) ?? "semibold"} disabled={isLocked}
+            onChange={(e) => updateConfig("titleWeight", e.target.value)} className={selectCls}>
+            <option value="normal">Normal</option>
+            <option value="medium">Medium</option>
+            <option value="semibold">Semibold (default)</option>
+            <option value="bold">Bold</option>
+            <option value="extrabold">Extra Bold</option>
+          </select>
+        </Field>
+        <Field label="Text Align">
+          <div className="grid grid-cols-3 gap-1">
+            {(["left", "center", "right"] as const).map((a) => (
+              <button key={a} type="button" disabled={isLocked}
+                onClick={() => updateConfig("textAlign", a === "left" ? undefined : a)}
+                className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                  ((config.textAlign as string) ?? "left") === a
+                    ? "bg-blue-500/15 text-blue-400 border-blue-500/40"
+                    : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
+                }`}>
+                {a === "left" ? "⬅ Left" : a === "center" ? "↔ Center" : "Right ➡"}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Vertical Align">
+          <div className="grid grid-cols-3 gap-1">
+            {(["top", "center", "bottom"] as const).map((a) => (
+              <button key={a} type="button" disabled={isLocked}
+                onClick={() => updateConfig("verticalAlign", a === "top" ? undefined : a)}
+                className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${
+                  ((config.verticalAlign as string) ?? "top") === a
+                    ? "bg-blue-500/15 text-blue-400 border-blue-500/40"
+                    : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-600"
+                }`}>
+                {a === "top" ? "⬆ Top" : a === "center" ? "↕ Middle" : "⬇ Bottom"}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <NumField label="Padding (px)" value={(config.padding as number) ?? 0} min={0} max={64}
+          onChange={(v) => updateConfig("padding", v || undefined)} disabled={isLocked} />
         <ColorField label="Background Color" value={(config.bgColor as string) ?? ""} disabled={isLocked}
           onChange={(v) => updateConfig("bgColor", v || undefined)} />
-        <ColorField label="Text Color" value={(config.textColor as string) ?? ""} disabled={isLocked}
+        <ColorField label="Title Color" value={(config.titleColor as string) ?? ""} disabled={isLocked}
+          onChange={(v) => updateConfig("titleColor", v || undefined)} />
+        <ColorField label="Body Text Color" value={(config.textColor as string) ?? ""} disabled={isLocked}
           onChange={(v) => updateConfig("textColor", v || undefined)} />
       </Section>
 
@@ -758,7 +823,153 @@ function CarouselEditor({ config, updateConfig, disabled }: {
             className="rounded border-zinc-600 bg-zinc-800 text-orange-500 focus:ring-orange-500/50" />
           Show arrows
         </label>
+        <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+          <input type="checkbox"
+            checked={config.carouselShowProgress !== "false" && config.carouselShowProgress !== false}
+            disabled={disabled}
+            onChange={(e) => updateConfig("carouselShowProgress", e.target.checked ? undefined : "false")}
+            className="rounded border-zinc-600 bg-zinc-800 text-orange-500 focus:ring-orange-500/50" />
+          Show progress bar
+        </label>
+        <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+          <input type="checkbox"
+            checked={config.carouselKenBurns === "true" || config.carouselKenBurns === true}
+            disabled={disabled}
+            onChange={(e) => updateConfig("carouselKenBurns", e.target.checked ? "true" : undefined)}
+            className="rounded border-zinc-600 bg-zinc-800 text-orange-500 focus:ring-orange-500/50" />
+          Ken-Burns zoom (images only)
+        </label>
       </div>
+      <label className="flex flex-col gap-1 mt-1">
+        <span className="text-[10px] text-zinc-500">Image Fit</span>
+        <select value={(config.carouselFit as string) ?? "cover"} disabled={disabled}
+          onChange={(e) => updateConfig("carouselFit", e.target.value)}
+          className="w-full rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700">
+          <option value="cover">Cover (fill, may crop)</option>
+          <option value="contain">Contain (letterbox)</option>
+          <option value="fill">Fill (stretch to size)</option>
+        </select>
+      </label>
+    </>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
+// PDF / Document Editor
+// ---------------------------------------------------------------------------
+
+function PdfEditor({ config, updateConfig, disabled }: {
+  config: Record<string, unknown>
+  updateConfig: (key: string, value: string | number | undefined) => void
+  disabled: boolean
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const url = (config.pdfUrl as string) ?? ""
+
+  async function uploadPdf(file: File) {
+    setError(null)
+    if (file.type !== "application/pdf") {
+      setError("Only PDF files are supported")
+      return
+    }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/media", { method: "POST", body: fd })
+      if (!res.ok) throw new Error(`${res.status}`)
+      const data = await res.json()
+      updateConfig("pdfUrl", data.url)
+    } catch (e) {
+      setError("Upload failed")
+      console.error(e)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <>
+      {url ? (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📄</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-rose-400 truncate">{url.split("/").pop()}</p>
+              <a href={url} target="_blank" rel="noopener noreferrer"
+                className="text-[10px] text-zinc-500 hover:text-zinc-300">Open in new tab &nearr;</a>
+            </div>
+            <button onClick={() => updateConfig("pdfUrl", undefined)} disabled={disabled}
+              className="text-xs text-zinc-500 hover:text-red-400 disabled:opacity-30">Remove</button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onClick={() => fileRef.current?.click()}
+          className="cursor-pointer rounded-lg border-2 border-dashed border-zinc-700 hover:border-rose-500/40 px-3 py-6 text-center"
+        >
+          <span className="text-2xl">📄</span>
+          <p className="mt-1 text-xs text-zinc-400">{uploading ? "Uploading…" : "Click to upload PDF"}</p>
+          <p className="text-[10px] text-zinc-600">Max 100 MB</p>
+        </div>
+      )}
+      <input ref={fileRef} type="file" accept="application/pdf" hidden disabled={disabled || uploading}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPdf(f); e.target.value = "" }} />
+
+      <Field label="Or paste a URL">
+        <input value={url} disabled={disabled}
+          onChange={(e) => updateConfig("pdfUrl", e.target.value || undefined)}
+          placeholder="https://example.com/file.pdf" className={inputCls} />
+      </Field>
+
+      {error && (
+        <p className="rounded-md bg-red-900/20 border border-red-500/20 px-2 py-1 text-[11px] text-red-400">{error}</p>
+      )}
+
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mt-1">Display Options</p>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Start Page">
+          <input type="number" min={1} value={(config.pdfPage as number) ?? 1} disabled={disabled}
+            onChange={(e) => updateConfig("pdfPage", parseInt(e.target.value, 10) || 1)}
+            className={inputCls + " tabular-nums"} />
+        </Field>
+        <Field label="Total Pages (optional)">
+          <input type="number" min={0} value={(config.pdfTotalPages as number) ?? 0} disabled={disabled}
+            onChange={(e) => updateConfig("pdfTotalPages", parseInt(e.target.value, 10) || undefined)}
+            placeholder="auto" className={inputCls + " tabular-nums"} />
+        </Field>
+      </div>
+
+      <Field label="Auto-Advance Pages (sec, 0 = off)">
+        <input type="number" min={0} max={120} value={(config.pdfAutoAdvanceSec as number) ?? 0} disabled={disabled}
+          onChange={(e) => updateConfig("pdfAutoAdvanceSec", parseInt(e.target.value, 10) || undefined)}
+          className={inputCls + " tabular-nums"} />
+      </Field>
+
+      <Field label="Fit Mode">
+        <select value={(config.pdfFit as string) ?? "page"} disabled={disabled}
+          onChange={(e) => updateConfig("pdfFit", e.target.value)} className={selectCls}>
+          <option value="page">Fit page</option>
+          <option value="width">Fit width</option>
+          <option value="height">Fit height</option>
+        </select>
+      </Field>
+
+      <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer py-1">
+        <input type="checkbox" disabled={disabled}
+          checked={config.pdfShowChrome !== "false" && config.pdfShowChrome !== false}
+          onChange={(e) => updateConfig("pdfShowChrome", e.target.checked ? undefined : "false")}
+          className="rounded border-zinc-600 bg-zinc-800 text-rose-500 focus:ring-rose-500/50" />
+        Show page indicator overlay
+      </label>
+
+      <p className="text-[10px] text-zinc-600">
+        Auto-advance only works when total pages is set. PDF is rendered using the browser&rsquo;s built-in viewer.
+      </p>
     </>
   )
 }

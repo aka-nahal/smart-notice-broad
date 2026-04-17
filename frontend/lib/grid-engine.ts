@@ -110,6 +110,54 @@ export function distributeH(rects: GridRect[]): GridRect[] {
   return rects.map((r) => result.find((nr) => nr === result[sorted.indexOf(r)])!)
 }
 
+// ---------------------------------------------------------------------------
+// Auto allocator: fits a list of tiles into a grid using a shelf-pack algorithm.
+// Larger tiles are placed first, then smaller ones fill the gaps. Tiles that
+// exceed the grid are clamped down. Always returns the same number of tiles
+// in the same input order, so the caller can map results back by index.
+// ---------------------------------------------------------------------------
+
+export function autoFitRects(rects: GridRect[], spec: GridSpec): GridRect[] {
+  // Pair each rect with its original index so we can restore order.
+  const indexed = rects.map((r, i) => ({
+    i,
+    w: Math.max(1, Math.min(spec.cols, r.w)),
+    h: Math.max(1, Math.min(spec.rows, r.h)),
+  }))
+  // Place largest area first (better packing).
+  indexed.sort((a, b) => b.w * b.h - a.w * a.h)
+
+  const placed: { i: number; rect: GridRect }[] = []
+  for (const item of indexed) {
+    let pos: { x: number; y: number } | null = null
+    outer: for (let y = 0; y <= spec.rows - item.h; y++) {
+      for (let x = 0; x <= spec.cols - item.w; x++) {
+        const candidate: GridRect = { x, y, w: item.w, h: item.h }
+        if (!placed.some((p) => rectsOverlap(candidate, p.rect))) {
+          pos = { x, y }; break outer
+        }
+      }
+    }
+    // Fallback: stack overflow tiles at (0,0) — caller can handle.
+    if (!pos) pos = { x: 0, y: 0 }
+    placed.push({ i: item.i, rect: { x: pos.x, y: pos.y, w: item.w, h: item.h } })
+  }
+
+  // Restore input order.
+  const result: GridRect[] = new Array(rects.length)
+  for (const p of placed) result[p.i] = p.rect
+  return result
+}
+
+/** Clamp a rect into the spec — used when the grid has shrunk. */
+export function clampRectToSpec(rect: GridRect, spec: GridSpec): GridRect {
+  const w = Math.max(1, Math.min(spec.cols, rect.w))
+  const h = Math.max(1, Math.min(spec.rows, rect.h))
+  const x = Math.max(0, Math.min(spec.cols - w, rect.x))
+  const y = Math.max(0, Math.min(spec.rows - h, rect.y))
+  return { x, y, w, h }
+}
+
 export function distributeV(rects: GridRect[]): GridRect[] {
   if (rects.length < 3) return rects
   const sorted = [...rects].sort((a, b) => a.y - b.y)

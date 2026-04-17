@@ -1,10 +1,12 @@
 import hashlib
 import os
+import re
 import uuid
 from pathlib import Path
+from typing import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,8 @@ ALLOWED_MIME = {
     "image/avif", "image/bmp",
     # Video
     "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+    # Documents
+    "application/pdf",
 }
 MIME_EXT = {
     "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif",
@@ -28,8 +32,10 @@ MIME_EXT = {
     "image/bmp": ".bmp",
     "video/mp4": ".mp4", "video/webm": ".webm", "video/ogg": ".ogv",
     "video/quicktime": ".mov",
+    "application/pdf": ".pdf",
 }
 VIDEO_MIME = {"video/mp4", "video/webm", "video/ogg", "video/quicktime"}
+PDF_MIME = {"application/pdf"}
 
 
 def _ensure_media_dir():
@@ -80,7 +86,12 @@ async def upload_media(
     with open(filepath, "wb") as f:
         f.write(data)
 
-    kind = "video" if file.content_type in VIDEO_MIME else "image"
+    if file.content_type in VIDEO_MIME:
+        kind = "video"
+    elif file.content_type in PDF_MIME:
+        kind = "pdf"
+    else:
+        kind = "image"
     asset = MediaAsset(
         kind=kind,
         local_path=str(filepath),
@@ -124,18 +135,75 @@ async def list_media(db: AsyncSession = Depends(get_db)):
     ]
 
 
+_RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
+# 256 KiB chunks: large enough to keep syscalls cheap, small enough to start
+# streaming bytes to the browser within a single TCP roundtrip.
+_CHUNK_SIZE = 256 * 1024
+
+
+async def _stream_range(path: Path, start: int, end: int) -> AsyncIterator[bytes]:
+    """Yield bytes [start, end] inclusive from `path` in chunks."""
+    remaining = end - start + 1
+    with path.open("rb") as f:
+        f.seek(start)
+        while remaining > 0:
+            chunk = f.read(min(_CHUNK_SIZE, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+            yield chunk
+
+
 @router.get("/{media_id}")
-async def serve_media(media_id: int, db: AsyncSession = Depends(get_db)):
+async def serve_media(media_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     asset = await db.get(MediaAsset, media_id)
     if not asset:
         raise HTTPException(status_code=404, detail="Media not found")
     path = Path(asset.local_path)
     if not path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
+
+    file_size = path.stat().st_size
+    media_type = asset.mime_type or "application/octet-stream"
+    range_header = request.headers.get("range") or request.headers.get("Range")
+
+    # Range request → 206 Partial Content. Required for smooth video playback
+    # and seeking; without it Chrome/Safari buffer the whole file before play.
+    if range_header:
+        m = _RANGE_RE.match(range_header)
+        if m:
+            start_str, end_str = m.group(1), m.group(2)
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else file_size - 1
+            if start >= file_size or end >= file_size or start > end:
+                raise HTTPException(
+                    status_code=416,
+                    detail="Requested range not satisfiable",
+                    headers={"Content-Range": f"bytes */{file_size}"},
+                )
+            length = end - start + 1
+            headers = {
+                "Content-Range":  f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges":  "bytes",
+                "Content-Length": str(length),
+                "Cache-Control":  "public, max-age=86400",
+            }
+            return StreamingResponse(
+                _stream_range(path, start, end),
+                status_code=206,
+                media_type=media_type,
+                headers=headers,
+            )
+
+    # No range header → full file, but advertise byte-range support so the
+    # browser knows it can seek with subsequent requests.
     return FileResponse(
         path,
-        media_type=asset.mime_type or "application/octet-stream",
-        headers={"Cache-Control": "public, max-age=86400"},
+        media_type=media_type,
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Accept-Ranges": "bytes",
+        },
     )
 
 

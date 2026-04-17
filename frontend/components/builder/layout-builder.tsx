@@ -10,6 +10,7 @@ import { TILE_TYPES } from "@/lib/types"
 import {
   rectsOverlap, isWithinBounds,
   alignLeft, alignRight, alignTop, alignBottom, distributeH, distributeV,
+  autoFitRects, clampRectToSpec,
   type GridRect, type GridSpec,
 } from "@/lib/grid-engine"
 import api from "@/lib/api-client"
@@ -262,14 +263,77 @@ function LayoutBuilderInner() {
   const updateGridSpec = useCallback(
     async (patch: { grid_cols?: number; grid_rows?: number; gap_px?: number }) => {
       if (!activeLayout || !version) return
+      const newSpec: GridSpec = {
+        cols:  patch.grid_cols ?? spec.cols,
+        rows:  patch.grid_rows ?? spec.rows,
+        gapPx: patch.gap_px    ?? spec.gapPx,
+      }
       const updated = await save.wrap(
         () => api.versions.update(activeLayout.id, version.id, patch),
         "Grid update failed",
       )
-      if (updated) { setVersion(updated); setTiles(updated.tiles) }
+      if (!updated) return
+      setVersion(updated)
+
+      // Reflow: if any tile no longer fits the new spec, clamp/repack.
+      const needsReflow = updated.tiles.some((t) =>
+        !isWithinBounds(tileRect(t), newSpec)
+      )
+      if (!needsReflow) {
+        setTiles(updated.tiles)
+        return
+      }
+      history.push(updated.tiles)
+      const clamped = updated.tiles.map((t) => {
+        const c = clampRectToSpec(tileRect(t), newSpec)
+        return { ...t, grid_x: c.x, grid_y: c.y, grid_w: c.w, grid_h: c.h }
+      })
+      // Repack any that now overlap.
+      const repacked = autoFitRects(clamped.map(tileRect), newSpec)
+      const items: TileBulkUpdateItem[] = []
+      const next = clamped.map((t, i) => {
+        const r = repacked[i]
+        if (t.grid_x !== r.x || t.grid_y !== r.y || t.grid_w !== r.w || t.grid_h !== r.h) {
+          items.push({ id: t.id, grid_x: r.x, grid_y: r.y, grid_w: r.w, grid_h: r.h })
+        }
+        return { ...t, grid_x: r.x, grid_y: r.y, grid_w: r.w, grid_h: r.h }
+      })
+      setTiles(next)
+      if (items.length > 0) {
+        await save.wrap(
+          () => api.tiles.bulkUpdate(activeLayout.id, version.id, items),
+          "Reflow persist failed",
+        )
+        toast("info", `Reflowed ${items.length} tile${items.length > 1 ? "s" : ""} to fit new grid`)
+      }
     },
-    [activeLayout, version, save],
+    [activeLayout, version, save, spec, history, toast],
   )
+
+  // ---- Auto-Fit: re-pack every tile into the grid with no overlaps ----
+  const autoFitTiles = useCallback(async () => {
+    if (!activeLayout || !version || tiles.length === 0) return
+    const newRects = autoFitRects(tiles.map(tileRect), spec)
+    const items: TileBulkUpdateItem[] = []
+    const next = tiles.map((t, i) => {
+      const r = newRects[i]
+      if (t.grid_x !== r.x || t.grid_y !== r.y || t.grid_w !== r.w || t.grid_h !== r.h) {
+        items.push({ id: t.id, grid_x: r.x, grid_y: r.y, grid_w: r.w, grid_h: r.h })
+      }
+      return { ...t, grid_x: r.x, grid_y: r.y, grid_w: r.w, grid_h: r.h }
+    })
+    if (items.length === 0) {
+      toast("info", "Already perfectly arranged")
+      return
+    }
+    history.push(tiles)
+    setTiles(next)
+    await save.wrap(
+      () => api.tiles.bulkUpdate(activeLayout.id, version.id, items),
+      "Auto-fit failed",
+    )
+    toast("success", `Auto-arranged ${items.length} tile${items.length > 1 ? "s" : ""}`)
+  }, [activeLayout, version, tiles, spec, history, save, toast])
 
   // ---- Tile operations ----
   const addTile = useCallback(
@@ -780,7 +844,7 @@ function LayoutBuilderInner() {
         onCloneVersion={cloneVersion} onPublish={publishVersion}
       />
 
-      {showGridSettings && <GridSettingsPanel spec={spec} tileCount={tiles.length} onUpdate={updateGridSpec} />}
+      {showGridSettings && <GridSettingsPanel spec={spec} tileCount={tiles.length} onUpdate={updateGridSpec} onAutoFit={autoFitTiles} />}
 
       <AlignToolbar count={selectedIds.size}
         onAlignLeft={() => applyAlignment(alignLeft)}

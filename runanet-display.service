@@ -1,0 +1,21 @@
+[Unit]
+Description=RunaNet Display (kiosk)
+# Wait for the graphical session to be up so DISPLAY / WAYLAND_DISPLAY are set
+# by the time we launch the webview.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/RunaNet
+ExecStart=/bin/bash %h/RunaNet/start.sh
+# Lock screen wants the camera, so don't block startup on its absence.
+Restart=on-failure
+RestartSec=5
+# Small stagger so the frontend build on first boot doesn't race the backend.
+TimeoutStartSec=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target
