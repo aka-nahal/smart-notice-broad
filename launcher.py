@@ -33,6 +33,15 @@ import time
 import urllib.request
 from typing import Optional
 
+# Force UTF-8 on stdout/stderr so the decorative unicode in status messages
+# doesn't blow up on Windows consoles that default to cp1252. Guarded for
+# older Pythons that lack `reconfigure`.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(ROOT, "backend")
 FRONTEND_DIR = os.path.join(ROOT, "frontend")
@@ -67,7 +76,10 @@ def start_frontend(port: int, backend_port: int) -> subprocess.Popen:
         "API_URL": f"http://127.0.0.1:{backend_port}",
         "HOSTNAME": "127.0.0.1",
     }
-    next_built = os.path.isdir(os.path.join(FRONTEND_DIR, ".next", "server"))
+    # `.next/server` alone isn't enough — the dev server writes partial output
+    # there too. BUILD_ID is the canonical "there's a real production build"
+    # marker that `next start` actually requires.
+    next_built = os.path.isfile(os.path.join(FRONTEND_DIR, ".next", "BUILD_ID"))
     if next_built:
         cmd = ["npm", "start", "--", "--port", str(port)]
         mode = "production"
@@ -75,7 +87,10 @@ def start_frontend(port: int, backend_port: int) -> subprocess.Popen:
         cmd = ["npm", "run", "dev", "--", "--port", str(port)]
         mode = "development"
     print(f"  Frontend mode: {mode}")
-    return subprocess.Popen(cmd, cwd=FRONTEND_DIR, env=env)
+    # On Windows, `npm` is shipped as `npm.cmd`, which CreateProcess won't
+    # resolve without the shell. shell=True is safe here because the command
+    # comes from code, not user input.
+    return subprocess.Popen(cmd, cwd=FRONTEND_DIR, env=env, shell=(os.name == "nt"))
 
 
 def build_frontend() -> bool:
@@ -85,94 +100,222 @@ def build_frontend() -> bool:
     return result.returncode == 0
 
 
+# ── Browser fallback (used when pywebview isn't available) ───────────────────
+
+def _find_browser() -> tuple[str, str] | None:
+    """Return (path, flavor) for Edge or Chrome — whichever is installed.
+    `flavor` is 'edge' or 'chrome' (their kiosk/app flags happen to match)."""
+    candidates: list[tuple[str, str]] = []
+    if os.name == "nt":
+        pf = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+        pfx86 = os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+        localapp = os.environ.get("LOCALAPPDATA", "")
+        candidates = [
+            (os.path.join(pfx86, r"Microsoft\Edge\Application\msedge.exe"), "edge"),
+            (os.path.join(pf,    r"Microsoft\Edge\Application\msedge.exe"), "edge"),
+            (os.path.join(pf,    r"Google\Chrome\Application\chrome.exe"),  "chrome"),
+            (os.path.join(pfx86, r"Google\Chrome\Application\chrome.exe"),  "chrome"),
+            (os.path.join(localapp, r"Google\Chrome\Application\chrome.exe"), "chrome"),
+        ]
+    else:
+        import shutil as _shutil
+        for name, flavor in [
+            ("microsoft-edge-stable", "edge"), ("microsoft-edge", "edge"),
+            ("google-chrome-stable", "chrome"), ("google-chrome", "chrome"),
+            ("chromium-browser", "chrome"), ("chromium", "chrome"),
+        ]:
+            path = _shutil.which(name)
+            if path:
+                candidates.append((path, flavor))
+
+    for path, flavor in candidates:
+        if path and os.path.isfile(path):
+            return path, flavor
+    return None
+
+
+def open_system_browser_app(
+    url: str,
+    fullscreen: bool,
+    monitor: dict | None = None,
+) -> subprocess.Popen | None:
+    """Launch Edge/Chrome in --app or --kiosk mode so it looks like a native
+    window. Used when pywebview isn't installable (e.g. Python 3.14 on Windows
+    where pythonnet has no wheel). If `monitor` is given, the window opens on
+    that monitor — the Chromium --window-position flag accepts the monitor's
+    top-left X,Y, and kiosk/fullscreen then lands on that screen.
+    Returns the Popen, or None if no browser was found."""
+    found = _find_browser()
+    if not found:
+        return None
+    path, _flavor = found
+    # Isolated profile so the kiosk doesn't inherit the user's bookmarks,
+    # extensions, or tabs. Lives under the repo's data dir.
+    profile_dir = os.path.join(ROOT, "data", "kiosk-profile")
+    os.makedirs(profile_dir, exist_ok=True)
+    args = [
+        path,
+        f"--user-data-dir={profile_dir}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-features=TranslateUI",
+    ]
+    if monitor:
+        # Position + size hint the kiosk window onto the chosen monitor.
+        args.append(f"--window-position={monitor['x']},{monitor['y']}")
+        args.append(f"--window-size={monitor['width']},{monitor['height']}")
+    args.append("--kiosk" if fullscreen else f"--app={url}")
+    if fullscreen:
+        args.append(url)
+    mode = "kiosk" if fullscreen else "app"
+    where = f" on monitor at ({monitor['x']},{monitor['y']})" if monitor else ""
+    print(f"  opening {os.path.basename(path)} {mode} mode{where}...")
+    return subprocess.Popen(args)
+
+
 # ── Monitor selection ─────────────────────────────────────────────────────────
 
+def _read_digit_with_timeout(valid_range: range, timeout: float) -> Optional[int]:
+    """Prompt the user for a monitor index on the terminal. Returns the
+    chosen 0-based index, or None on timeout / headless runs.
+
+    Handles both platforms without blocking stdin forever:
+      * Windows: polls ``msvcrt.kbhit`` so we can check Enter mid-wait.
+      * POSIX:   uses ``select`` on stdin for the same effect.
+    Backspace works; Enter commits; non-digit input is ignored."""
+    if not sys.stdin or not sys.stdin.isatty():
+        # Running under systemd / piped output - no TTY to prompt. Caller
+        # should fall back to the default silently.
+        return None
+
+    deadline = time.monotonic() + timeout
+    buf = ""
+
+    def remaining() -> float:
+        return max(0.0, deadline - time.monotonic())
+
+    def redraw() -> None:
+        secs = int(remaining()) + (1 if remaining() % 1 else 0)
+        line = f"  Enter monitor number [{secs:>2}s]: {buf}"
+        # \r + trailing spaces overwrites the previous longer line without
+        # relying on ANSI escape support (Git Bash on Windows treats them
+        # as literal text).
+        sys.stdout.write("\r" + line.ljust(60))
+        sys.stdout.flush()
+
+    try:
+        if os.name == "nt":
+            import msvcrt  # type: ignore
+            redraw()
+            last_sec = -1
+            while remaining() > 0:
+                # Repaint the countdown once per second.
+                cur_sec = int(remaining())
+                if cur_sec != last_sec:
+                    redraw()
+                    last_sec = cur_sec
+                if msvcrt.kbhit():
+                    ch = msvcrt.getwch()
+                    if ch in ("\r", "\n"):
+                        if buf:
+                            sys.stdout.write("\n"); sys.stdout.flush()
+                            try:
+                                v = int(buf) - 1
+                                if v in valid_range:
+                                    return v
+                            except ValueError:
+                                pass
+                            buf = ""
+                            redraw()
+                            continue
+                        # Enter with empty buffer just accepts the default.
+                        sys.stdout.write("\n"); sys.stdout.flush()
+                        return None
+                    elif ch in ("\x08", "\x7f"):
+                        buf = buf[:-1]
+                        redraw()
+                    elif ch == "\x1b":  # Esc
+                        sys.stdout.write("\n"); sys.stdout.flush()
+                        return None
+                    elif ch.isdigit():
+                        buf += ch
+                        redraw()
+                else:
+                    time.sleep(0.05)
+        else:
+            import select
+            redraw()
+            last_sec = -1
+            while remaining() > 0:
+                cur_sec = int(remaining())
+                if cur_sec != last_sec:
+                    redraw()
+                    last_sec = cur_sec
+                r, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if r:
+                    ch = sys.stdin.read(1)
+                    if ch in ("\r", "\n"):
+                        sys.stdout.write("\n"); sys.stdout.flush()
+                        if buf:
+                            try:
+                                v = int(buf) - 1
+                                if v in valid_range:
+                                    return v
+                            except ValueError:
+                                pass
+                        return None
+                    elif ch in ("\x08", "\x7f"):
+                        buf = buf[:-1]
+                        redraw()
+                    elif ch.isdigit():
+                        buf += ch
+                        redraw()
+    finally:
+        sys.stdout.write("\n"); sys.stdout.flush()
+
+    return None
+
+
 def pick_monitor(timeout: float = 5.0) -> Optional[dict]:
-    """Show a small Tk dialog listing monitors. Auto-picks the primary monitor
-    after `timeout` seconds if the user doesn't choose. Returns a dict with
-    ``x``, ``y``, ``width``, ``height`` for the chosen monitor — or None when
-    only one monitor exists (no dialog needed) or enumeration fails."""
+    """Prompt on the terminal for which monitor to use. Auto-picks the primary
+    monitor after ``timeout`` seconds if the user doesn't respond (or if
+    there's no TTY, e.g. running under systemd). Returns a dict with ``x``,
+    ``y``, ``width``, ``height`` for the chosen monitor, or None if screen
+    enumeration isn't available."""
     try:
         from screeninfo import get_monitors  # type: ignore
     except Exception:
-        print("  screeninfo not installed — using default monitor.")
+        print("  screeninfo not installed - using default monitor.")
         return None
 
     try:
         monitors = get_monitors()
     except Exception as e:
-        print(f"  monitor enumeration failed ({e}) — using default.")
+        print(f"  monitor enumeration failed ({e}) - using default.")
         return None
 
-    if len(monitors) <= 1:
+    if not monitors:
         return None
 
     default_idx = next((i for i, m in enumerate(monitors) if getattr(m, "is_primary", False)), 0)
 
-    try:
-        import tkinter as tk
-    except Exception:
-        print("  tkinter not available — using primary monitor.")
-        m = monitors[default_idx]
-        return {"x": m.x, "y": m.y, "width": m.width, "height": m.height}
-
-    chosen = {"idx": default_idx}
-    remaining = {"s": int(timeout)}
-
-    root = tk.Tk()
-    root.title("RunaNet — select display")
-    root.attributes("-topmost", True)
-    root.resizable(False, False)
-    root.configure(bg="#111")
-
-    tk.Label(
-        root, text="Choose the monitor for the display",
-        font=("Segoe UI", 12, "bold"), fg="#fff", bg="#111"
-    ).pack(padx=24, pady=(18, 6))
-
-    countdown_label = tk.Label(
-        root, text="", font=("Segoe UI", 10), fg="#9ca3af", bg="#111"
-    )
-    countdown_label.pack(pady=(0, 10))
-
-    selected = tk.IntVar(value=default_idx)
+    print("")
+    print("  Available displays:")
     for i, m in enumerate(monitors):
-        primary_tag = "  (primary)" if getattr(m, "is_primary", False) else ""
-        label = f"Monitor {i + 1}: {m.width}×{m.height} @ ({m.x},{m.y}){primary_tag}"
-        tk.Radiobutton(
-            root, text=label, variable=selected, value=i,
-            font=("Segoe UI", 10), fg="#fff", bg="#111",
-            selectcolor="#1e3a8a", activebackground="#111",
-            activeforeground="#fff", anchor="w",
-        ).pack(fill="x", padx=24, pady=2)
+        is_default = i == default_idx
+        tag = "  [default]" if is_default else ""
+        primary = "  (primary)" if getattr(m, "is_primary", False) else ""
+        print(f"    {i + 1}. {m.width}x{m.height} @ ({m.x},{m.y}){primary}{tag}")
+    print("")
 
-    def confirm() -> None:
-        chosen["idx"] = selected.get()
-        root.destroy()
+    picked = _read_digit_with_timeout(range(len(monitors)), timeout)
+    idx = picked if picked is not None else default_idx
+    if picked is None:
+        print(f"  -> auto-selected monitor {idx + 1} (default)")
+    else:
+        print(f"  -> monitor {idx + 1}")
 
-    tk.Button(
-        root, text="Use this display", command=confirm,
-        bg="#2563eb", fg="#fff", activebackground="#1d4ed8",
-        activeforeground="#fff", relief="flat", font=("Segoe UI", 10, "bold"),
-        padx=18, pady=6,
-    ).pack(pady=(14, 18))
-
-    def tick() -> None:
-        if remaining["s"] <= 0:
-            chosen["idx"] = selected.get()
-            root.destroy()
-            return
-        countdown_label.config(
-            text=f"Auto-selecting in {remaining['s']}s — press Use this display to keep choice"
-        )
-        remaining["s"] -= 1
-        root.after(1000, tick)
-
-    tick()
-    root.eval(f'tk::PlaceWindow {root.winfo_pathname(root.winfo_id())} center')
-    root.mainloop()
-
-    m = monitors[chosen["idx"]]
+    m = monitors[idx]
     return {"x": m.x, "y": m.y, "width": m.width, "height": m.height}
 
 
@@ -208,19 +351,30 @@ def main() -> None:
     parser.add_argument("--build",        action="store_true",     help="Run npm build before starting")
     parser.add_argument("--debug",        action="store_true",     help="Enable webview devtools and verbose output")
     parser.add_argument("--no-presence",  action="store_true",     help="Disable camera-based lock-screen presence detection")
+    parser.add_argument("--presence-grace", type=float, default=20.0, help="Seconds to stay unlocked after a viewer leaves the camera (default 20)")
     parser.add_argument("--monitor-timeout", type=float, default=5.0, help="Seconds before the monitor picker auto-selects (default 5)")
     args = parser.parse_args()
 
     procs: list[subprocess.Popen] = []
 
     def cleanup(*_: object) -> None:
-        print("\nShutting down RunaNet…")
+        print("\nShutting down RunaNet...")
         for p in procs:
             try:
-                p.terminate()
-                p.wait(timeout=5)
+                if os.name == "nt":
+                    # Frontend runs under a cmd.exe shell (needed to resolve
+                    # npm.cmd), so terminating the shell orphans node.exe.
+                    # taskkill /T walks the whole child tree.
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(p.pid)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                else:
+                    p.terminate()
+                    p.wait(timeout=5)
             except Exception:
-                p.kill()
+                try: p.kill()
+                except Exception: pass
         sys.exit(0)
 
     signal.signal(signal.SIGINT,  cleanup)
@@ -250,20 +404,23 @@ def main() -> None:
         cleanup()
 
     # ── Monitor selection (multi-display only) ────────────────────────────────
-    if args.no_fullscreen:
-        monitor = None
-    else:
-        monitor = pick_monitor(timeout=args.monitor_timeout)
-        if monitor:
-            print(f"  using monitor at ({monitor['x']},{monitor['y']}) "
-                  f"{monitor['width']}×{monitor['height']}")
+    # Always runs when multiple monitors are present, even in windowed mode -
+    # the dialog is how we let you choose WHICH screen the window opens on.
+    # On single-monitor systems pick_monitor returns None without a dialog.
+    monitor = pick_monitor(timeout=args.monitor_timeout)
+    if monitor:
+        print(f"  using monitor at ({monitor['x']},{monitor['y']}) "
+              f"{monitor['width']}x{monitor['height']}")
 
     # ── Presence detector (lock-screen driver) ────────────────────────────────
     detector = None
     if not args.no_presence:
         try:
             from presence_detector import PresenceDetector
-            detector = PresenceDetector(backend_port=args.backend_port)
+            detector = PresenceDetector(
+                backend_port=args.backend_port,
+                grace_seconds=args.presence_grace,
+            )
             detector.start()
         except Exception as e:
             print(f"  presence detector not started: {e}")
@@ -281,34 +438,50 @@ def main() -> None:
     cleanup = cleanup_all  # noqa: F811
 
     # ── Open native window ────────────────────────────────────────────────────
-    print("Opening display window…")
+    print("Opening display window...")
     try:
         import webview  # type: ignore
     except ImportError:
-        print(
-            "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "ERROR: pywebview is not installed.\n\n"
-            "Install it with:\n"
-            "    pip install pywebview\n\n"
-            "On RPi / Linux you also need the GTK WebKit2 bindings:\n"
-            "    sudo apt install python3-gi gir1.2-webkit2-4.0 libgtk-3-0\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        print("pywebview not available - falling back to system browser in app mode.")
+        browser_proc = open_system_browser_app(
+            url=f"http://127.0.0.1:{args.port}/display",
+            fullscreen=not args.no_fullscreen,
+            monitor=monitor,
         )
-        # Services are still running; keep them alive until Ctrl+C
-        print("Services are running. Press Ctrl+C to stop.")
+        if browser_proc is None:
+            print("  no Edge/Chrome found. Open this URL in any browser instead:")
+            print(f"    http://127.0.0.1:{args.port}/display")
+
+        # Stay alive and supervise the backend/frontend. On Windows,
+        # `msedge.exe --app=...` exits immediately after handing the URL to an
+        # existing Edge process - so browser_proc.poll() is not a reliable
+        # signal that the user closed the window. We just run until Ctrl+C on
+        # Windows. On Linux/macOS the browser we launched IS the window.
+        print("Services are running. Press Ctrl+C to stop (or close the window on Linux/macOS).")
+        watch_browser = browser_proc is not None and os.name != "nt"
+        crash_history: list[list[float]] = [[], []]  # recent start timestamps per proc
         try:
             while True:
-                time.sleep(5)
-                # Restart any crashed service
+                time.sleep(2)
+                if watch_browser and browser_proc.poll() is not None:  # type: ignore[union-attr]
+                    print("Browser window closed.")
+                    break
                 for i, p in enumerate(procs):
-                    if p.poll() is not None:
-                        print(f"Service {i} crashed (exit {p.returncode}), restarting…")
-                        if i == 0:
-                            procs[i] = start_backend(args.backend_port)
-                        else:
-                            procs[i] = start_frontend(args.port, args.backend_port)
+                    if p.poll() is None:
+                        continue
+                    now = time.time()
+                    crash_history[i] = [t for t in crash_history[i] if now - t < 30] + [now]
+                    if len(crash_history[i]) >= 3:
+                        label = "backend" if i == 0 else "frontend"
+                        print(f"{label} crashed 3x in 30s - giving up. Check the logs above.")
+                        cleanup_all()
+                        return
+                    print(f"Service {i} crashed (exit {p.returncode}), restarting...")
+                    procs[i] = start_backend(args.backend_port) if i == 0 else start_frontend(args.port, args.backend_port)
         except KeyboardInterrupt:
-            cleanup()
+            pass
+        cleanup_all()
+        return
 
     want_fullscreen = not args.no_fullscreen
 

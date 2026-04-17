@@ -273,9 +273,8 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                     <svg className="h-4 w-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </div>
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1">
-                    <p className="truncate text-[8px] text-white/80">{m.filename}</p>
-                    <p className="text-[7px] text-white/50">{formatBytes(m.bytes_size)}</p>
+                  <div className="absolute bottom-1 right-1 rounded bg-black/60 px-1 py-0.5 text-[7px] text-white/70">
+                    {formatBytes(m.bytes_size)}
                   </div>
                   {currentMediaId === m.id && (
                     <div className="absolute top-1 right-1 rounded bg-pink-500 px-1 py-0.5 text-[7px] font-bold text-white">SELECTED</div>

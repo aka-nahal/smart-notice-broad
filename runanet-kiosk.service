@@ -1,0 +1,41 @@
+[Unit]
+Description=RunaNet Kiosk (RPi OS Lite, cage + Chromium)
+Wants=network-online.target
+After=network-online.target systemd-user-sessions.service getty@tty1.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+PAMName=login
+
+# Hand the kiosk the TTY so cage can create a DRM session on it, and so
+# Ctrl+Alt+F-keys still work if you need to escape via ssh later.
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+
+# cage is a tiny Wayland kiosk compositor - one fullscreen app, no desktop.
+# It runs the RunaNet launcher, which in turn boots the backend + frontend
+# and opens Chromium in kiosk mode on the active display.
+WorkingDirectory=/home/__USER__/RunaNet
+Environment=HOME=/home/__USER__
+Environment=XDG_RUNTIME_DIR=/run/user/__UID__
+Environment=XDG_SESSION_TYPE=wayland
+# XDG_RUNTIME_DIR is normally created by systemd-logind at login. Since we
+# aren't going through a login, pre-create it as root (the '+' prefix
+# escalates) with the correct owner so cage/Wayland can place sockets there.
+ExecStartPre=+/usr/bin/install -d -m 0700 -o __USER__ -g __USER__ /run/user/__UID__
+ExecStart=/usr/bin/cage -ds -- __PYTHON__ /home/__USER__/RunaNet/start.py
+
+Restart=always
+RestartSec=5
+# First boot builds the Next.js bundle - needs a generous startup budget.
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

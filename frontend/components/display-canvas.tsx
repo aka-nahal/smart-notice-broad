@@ -50,15 +50,28 @@ function WidgetContent({ type, tileW, tileH, config, mediaUrl }: { type: string;
   if (type === "banner") {
     const title = config.bannerTitle || "Smart Notice Board"
     const subtitle = config.bannerSubtitle
+    // Tile-size-derived Tailwind class used when no explicit px is set.
+    const autoTitleCls = size === "xl" ? "text-2xl" : size === "lg" ? "text-xl" : size === "md" ? "text-lg" : "text-base"
+    const autoSubtitleCls = size === "xl" || size === "lg" ? "text-sm" : "text-xs"
+    const titleStyle: React.CSSProperties = typeof config.bannerTitleSize === "number"
+      ? { fontSize: `${config.bannerTitleSize}px`, lineHeight: 1.1 }
+      : {}
+    const subtitleStyle: React.CSSProperties = typeof config.bannerSubtitleSize === "number"
+      ? { fontSize: `${config.bannerSubtitleSize}px`, lineHeight: 1.2 }
+      : {}
     return (
       <div className="flex h-full flex-col items-center justify-center bg-gradient-to-r from-sky-600/30 to-indigo-600/30 px-6 gap-1">
-        <p className={`text-center font-semibold text-white/90 ${
-          size === "xl" ? "text-2xl" : size === "lg" ? "text-xl" : size === "md" ? "text-lg" : "text-base"
-        }`}>
+        <p
+          className={`text-center font-semibold text-white/90 ${titleStyle.fontSize ? "" : autoTitleCls}`}
+          style={titleStyle}
+        >
           {title}
         </p>
         {subtitle && (
-          <p className={`text-center text-white/60 ${size === "xl" || size === "lg" ? "text-sm" : "text-xs"}`}>
+          <p
+            className={`text-center text-white/60 ${subtitleStyle.fontSize ? "" : autoSubtitleCls}`}
+            style={subtitleStyle}
+          >
             {subtitle}
           </p>
         )}

@@ -164,7 +164,7 @@ export function ImageUpload({ currentMediaId, currentImageUrl, disabled, onSelec
                     currentMediaId === m.id ? "border-blue-400 ring-1 ring-blue-400/50" : "border-zinc-700"
                   } disabled:opacity-50`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.url} alt={m.filename} className="h-full w-full object-cover" loading="lazy" />
+                  <img src={m.url} alt="" className="h-full w-full object-cover" loading="lazy" />
                   {currentMediaId === m.id && (
                     <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
                       <span className="rounded bg-blue-500 px-1.5 py-0.5 text-[8px] font-bold text-white">SELECTED</span>

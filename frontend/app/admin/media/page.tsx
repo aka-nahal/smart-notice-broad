@@ -137,14 +137,13 @@ export default function MediaPage() {
                     </>
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={asset.url} alt={asset.filename} className="h-full w-full object-cover" loading="lazy" />
+                    <img src={asset.url} alt="" className="h-full w-full object-cover" loading="lazy" />
                   )}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                    <div className="flex items-center gap-1">
-                      {asset.kind === "video" && <span className="text-[8px] bg-pink-500/80 text-white px-1 rounded">VIDEO</span>}
-                      <p className="truncate text-[10px] text-white/80">{asset.filename}</p>
+                  {asset.kind === "video" && (
+                    <div className="absolute left-1.5 bottom-1.5">
+                      <span className="text-[8px] bg-pink-500/80 text-white px-1 rounded">VIDEO</span>
                     </div>
-                  </div>
+                  )}
                 </button>
               ))}
             </div>

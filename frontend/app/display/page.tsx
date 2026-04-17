@@ -51,6 +51,49 @@ export default function DisplayPage() {
   // Lock screen only engages when presence tracking is actively enabled AND
   // the detector reports nobody looking. Otherwise the notices stay on screen.
   const showLock = !!presence && presence.enabled && !presence.looking
+  const looking = !!presence?.looking
+
+  // Screen Wake Lock: as long as someone is looking at the display, hold an
+  // OS-level wake lock so the monitor doesn't blank. Release it when they
+  // walk away - the lock screen itself is fine to let the system sleep.
+  useEffect(() => {
+    const nav = typeof navigator !== "undefined" ? navigator : undefined
+    // Feature-detect: Screen Wake Lock API is in Chromium/Edge/Safari 16+.
+    const wl = (nav as unknown as { wakeLock?: { request: (t: "screen") => Promise<WakeLockSentinel> } })?.wakeLock
+    if (!wl) return
+
+    let sentinel: WakeLockSentinel | null = null
+    let cancelled = false
+
+    async function acquire() {
+      try {
+        sentinel = await wl!.request("screen")
+        // Chromium drops the lock if the tab loses visibility - reacquire on
+        // return so a brief focus swap doesn't let the monitor blank.
+        sentinel?.addEventListener("release", () => { sentinel = null })
+      } catch {
+        /* user-gesture or policy refused - best effort */
+      }
+    }
+
+    async function release() {
+      try { await sentinel?.release() } catch { /* ignore */ }
+      sentinel = null
+    }
+
+    if (looking) {
+      acquire()
+      const onVis = () => {
+        if (!cancelled && document.visibilityState === "visible" && looking && !sentinel) {
+          acquire()
+        }
+      }
+      document.addEventListener("visibilitychange", onVis)
+      return () => { cancelled = true; document.removeEventListener("visibilitychange", onVis); release() }
+    } else {
+      release()
+    }
+  }, [looking])
 
   return (
     // force-dark keeps the display board dark regardless of admin theme preference

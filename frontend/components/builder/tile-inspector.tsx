@@ -207,6 +207,59 @@ export function TileInspector({ tile, notices, spec, isLocked, onUpdate, onDelet
                 onChange={(e) => updateConfig("bannerSubtitle", e.target.value)}
                 placeholder="AI-Powered Campus Display" className={inputCls} />
             </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Title size (px)">
+                <input
+                  type="number" min={10} max={256}
+                  value={typeof config.bannerTitleSize === "number" ? config.bannerTitleSize : ""}
+                  disabled={isLocked}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    if (raw === "") { updateConfig("bannerTitleSize", undefined); return }
+                    const n = parseInt(raw, 10)
+                    if (!isNaN(n)) updateConfig("bannerTitleSize", Math.max(10, Math.min(256, n)))
+                  }}
+                  placeholder="auto"
+                  className={inputCls + " tabular-nums"}
+                />
+              </Field>
+              <Field label="Subtitle size (px)">
+                <input
+                  type="number" min={8} max={128}
+                  value={typeof config.bannerSubtitleSize === "number" ? config.bannerSubtitleSize : ""}
+                  disabled={isLocked}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    if (raw === "") { updateConfig("bannerSubtitleSize", undefined); return }
+                    const n = parseInt(raw, 10)
+                    if (!isNaN(n)) updateConfig("bannerSubtitleSize", Math.max(8, Math.min(128, n)))
+                  }}
+                  placeholder="auto"
+                  className={inputCls + " tabular-nums"}
+                />
+              </Field>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {[16, 24, 32, 48, 64, 96].map((px) => (
+                <button
+                  key={px}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => updateConfig("bannerTitleSize", px)}
+                  className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-300 hover:border-blue-500/50 hover:text-white disabled:opacity-50"
+                >
+                  {px}px
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={() => { updateConfig("bannerTitleSize", undefined); updateConfig("bannerSubtitleSize", undefined) }}
+                className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400 hover:border-amber-500/50 hover:text-amber-300 disabled:opacity-50"
+              >
+                Auto
+              </button>
+            </div>
           </>
         )}
 
@@ -723,11 +776,10 @@ function CarouselEditor({ config, updateConfig, disabled }: {
                       } disabled:cursor-not-allowed`}>
                       {isImage ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={m.url || `/api/media/${m.id}`} alt={m.filename} className="h-full w-full object-cover" loading="lazy" />
+                        <img src={m.url || `/api/media/${m.id}`} alt="" className="h-full w-full object-cover" loading="lazy" />
                       ) : (
-                        <div className="flex h-full flex-col items-center justify-center bg-zinc-800 gap-0.5">
-                          <span className="text-lg">{isPdf ? "📄" : isVideo ? "🎬" : "📁"}</span>
-                          <span className="text-[7px] text-zinc-500 truncate max-w-full px-1">{m.filename}</span>
+                        <div className="flex h-full flex-col items-center justify-center bg-zinc-800">
+                          <span className="text-2xl">{isPdf ? "📄" : isVideo ? "🎬" : "📁"}</span>
                         </div>
                       )}
                       {alreadyAdded && (

@@ -145,6 +145,10 @@ export interface TileConfig {
   tickerText?: string
   bannerTitle?: string
   bannerSubtitle?: string
+  /** Banner title font size (px). If omitted, auto-sizes to the tile. */
+  bannerTitleSize?: number
+  /** Banner subtitle font size (px). If omitted, auto-sizes to the tile. */
+  bannerSubtitleSize?: number
   imageUrl?: string
   imageAlt?: string
   videoUrl?: string
