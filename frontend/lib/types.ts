@@ -168,6 +168,9 @@ export interface TileConfig {
   carouselShowDots?: boolean | string
   carouselShowArrows?: boolean | string
   carouselAutoplay?: boolean | string
+  carouselShowProgress?: boolean | string
+  carouselKenBurns?: boolean | string
+  carouselFit?: "cover" | "contain" | "fill" | string
 }
 
 export interface DisplayTileDTO {
