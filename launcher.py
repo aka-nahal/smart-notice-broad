@@ -27,9 +27,11 @@ from __future__ import annotations
 import argparse
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from typing import Optional
 
@@ -66,6 +68,9 @@ def start_backend(port: int) -> subprocess.Popen:
          "--log-level", "warning"],
         cwd=BACKEND_DIR,
         env=env,
+        # POSIX-only: own process group so cleanup() can SIGTERM the whole
+        # tree (uvicorn + any reloader children). Silently ignored on Windows.
+        start_new_session=(os.name != "nt"),
     )
 
 
@@ -90,7 +95,15 @@ def start_frontend(port: int, backend_port: int) -> subprocess.Popen:
     # On Windows, `npm` is shipped as `npm.cmd`, which CreateProcess won't
     # resolve without the shell. shell=True is safe here because the command
     # comes from code, not user input.
-    return subprocess.Popen(cmd, cwd=FRONTEND_DIR, env=env, shell=(os.name == "nt"))
+    return subprocess.Popen(
+        cmd, cwd=FRONTEND_DIR, env=env,
+        shell=(os.name == "nt"),
+        # POSIX-only: own process group so cleanup() can reach the real
+        # `next-server` node process (npm spawns it as a grandchild and
+        # doesn't always forward signals). Without this, retrying start.py
+        # fails with EADDRINUSE on :3000 because the listener survives.
+        start_new_session=(os.name != "nt"),
+    )
 
 
 def build_frontend() -> bool:
@@ -324,17 +337,43 @@ def pick_monitor(timeout: float = 5.0) -> Optional[dict]:
 def wait_for(url: str, timeout: int = 120, label: str = "") -> bool:
     deadline = time.time() + timeout
     attempts = 0
+    last_exc: Optional[BaseException] = None
     while time.time() < deadline:
         try:
             urllib.request.urlopen(url, timeout=3)
             return True
-        except Exception:
+        except urllib.error.HTTPError:
+            # Any HTTP response (3xx/4xx/5xx) means the server is up. Next.js
+            # serves a 307 redirect at `/` which urllib's redirect handler can
+            # turn into an HTTPError — that's "ready", not "broken".
+            return True
+        except Exception as e:
+            last_exc = e
             time.sleep(1.5)
             attempts += 1
             if attempts % 8 == 0 and label:
                 elapsed = int(time.time() - (deadline - timeout))
                 print(f"  still waiting for {label}… ({elapsed}s)")
+
+    print(f"  readiness probe failed: {_readiness_diagnostic(url, last_exc)}")
     return False
+
+
+def _readiness_diagnostic(url: str, last_exc: Optional[BaseException]) -> str:
+    """One-line summary for a failed wait_for: the URL, the last HTTP-probe
+    exception, and a separate raw TCP connect to the same host:port. The TCP
+    line distinguishes 'port not open' from 'HTTP layer rejecting us'."""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    exc = f"{type(last_exc).__name__}: {last_exc}" if last_exc else "no exception captured"
+    try:
+        with socket.create_connection((host, port), timeout=3):
+            tcp = "TCP open"
+    except Exception as e:
+        tcp = f"TCP failed ({type(e).__name__}: {e})"
+    return f"url={url} last={exc} tcp={tcp}"
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -359,7 +398,13 @@ def main() -> None:
 
     def cleanup(*_: object) -> None:
         print("\nShutting down RunaNet...")
+        # Round 1: ask politely. On POSIX we signal the whole process group
+        # so grandchildren (notably the real `next-server` under `npm`) die
+        # too — otherwise port 3000 stays bound and the next start.py hits
+        # EADDRINUSE.
         for p in procs:
+            if p.poll() is not None:
+                continue
             try:
                 if os.name == "nt":
                     # Frontend runs under a cmd.exe shell (needed to resolve
@@ -370,11 +415,29 @@ def main() -> None:
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     )
                 else:
-                    p.terminate()
-                    p.wait(timeout=5)
+                    try:
+                        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
             except Exception:
-                try: p.kill()
+                try: p.terminate()
                 except Exception: pass
+
+        # Round 2: wait up to 5s for a graceful exit, then SIGKILL anything
+        # still alive. Without escalation, a hung node process can leak the
+        # listening socket past launcher exit.
+        deadline = time.time() + 5
+        while time.time() < deadline and any(p.poll() is None for p in procs):
+            time.sleep(0.1)
+        for p in procs:
+            if p.poll() is None:
+                try:
+                    if os.name == "nt":
+                        p.kill()
+                    else:
+                        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+                except Exception:
+                    pass
         sys.exit(0)
 
     signal.signal(signal.SIGINT,  cleanup)

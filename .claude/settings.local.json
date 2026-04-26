@@ -84,7 +84,9 @@
       "Bash(npm uninstall *)",
       "Bash(bash -n \"C:/Users/ld/Documents/GitHub/RunaNet/runaos.sh\")",
       "Bash(python -c \"import sys; sys.path.insert\\(0, '.'\\); from app.models.notice import Notice; from app.routers.notices import router as n; from app.routers.display import router as d; from app.database import init_db; print\\('OK - imports clean'\\)\")",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('launcher.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
+      "Bash(python -)"
     ]
   }
 }
