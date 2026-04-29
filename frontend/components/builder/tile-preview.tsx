@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import type { TileRead, NoticeRead } from "@/lib/types"
 import { WeatherWidget } from "@/components/weather-widget"
 import { CarouselPreview, parseSlides } from "@/components/carousel-widget"
+import { StackPreview, parseStackChildren } from "@/components/stack-widget"
 
 interface Props {
   tile: TileRead
@@ -66,15 +67,15 @@ export function TilePreview({ tile, notice, isSelected, isLocked, singleSelect, 
           </>
         ) : mediaSrc || videoUrl ? (
           <>
-            <video src={mediaSrc || videoUrl} className="h-full w-full object-cover rounded-md" muted loop playsInline
-              onMouseEnter={(e) => (e.target as HTMLVideoElement).play().catch(() => {})}
-              onMouseLeave={(e) => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = 0 }}
+            <video
+              src={mediaSrc || videoUrl}
+              className="h-full w-full object-cover rounded-md"
+              muted
+              autoPlay
+              loop
+              playsInline
+              preload="auto"
             />
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-              <div className="rounded-full bg-black/50 p-1.5">
-                <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              </div>
-            </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent rounded-md pointer-events-none" />
           </>
         ) : (
@@ -149,6 +150,47 @@ export function TilePreview({ tile, notice, isSelected, isLocked, singleSelect, 
     return (
       <div className="h-full rounded-md" style={customBg}>
         <CarouselPreview slides={slides} interval={(cfg.carouselInterval as number) || 5} />
+      </div>
+    )
+  }
+
+  if (type === "stack") {
+    const items = parseStackChildren(cfg.stackChildren as string)
+    return (
+      <div className="h-full rounded-md" style={customBg}>
+        <StackPreview items={items} interval={(cfg.stackInterval as number) || 8} />
+      </div>
+    )
+  }
+
+  if (type === "teachers_list") {
+    const filter = (cfg.teachersFilter as string) || "all"
+    const title  = (cfg.teachersTitle as string) || "Teachers"
+    const filterLabel: Record<string, string> = {
+      all: "All",
+      available: "Available now",
+      in_class: "In class",
+      busy: "Busy",
+    }
+    return (
+      <div className="flex h-full flex-col rounded-md bg-indigo-950/30" style={customBg}>
+        <div className="flex items-center gap-1.5 px-2 py-1 border-b border-indigo-500/20">
+          <span className="text-xs">👥</span>
+          <span className="text-[10px] font-semibold text-indigo-200 truncate">{title}</span>
+          <span className="ml-auto text-[8px] text-indigo-400/70">{filterLabel[filter] ?? filter}</span>
+        </div>
+        <div className="flex-1 px-2 py-1 space-y-1 overflow-hidden">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-1.5 opacity-60">
+              <span className="h-3.5 w-3.5 rounded-full bg-indigo-500/20" />
+              <div className="flex-1 min-w-0">
+                <div className="h-1 w-3/4 rounded bg-indigo-500/30" />
+                <div className="h-0.5 w-1/2 mt-0.5 rounded bg-indigo-500/15" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-2 pb-1 text-[8px] text-indigo-400/60 italic">↻ scrolls if overflows</div>
       </div>
     )
   }

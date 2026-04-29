@@ -1,8 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { TeacherStatusWidget } from "@/components/teacher-status-widget"
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+interface TeacherLite {
+  id: number
+  name: string
+  room: string | null
+}
 
 interface TimetableEntry {
   id: number
@@ -45,6 +52,16 @@ export default function TimetablesPage() {
   const [newTTDesc, setNewTTDesc] = useState("")
   const [newEntry, setNewEntry] = useState({ ...EMPTY_ENTRY })
   const [saving, setSaving] = useState(false)
+  const [teachers, setTeachers] = useState<TeacherLite[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/teachers")
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled && Array.isArray(data)) setTeachers(data) })
+      .catch(() => { /* leave empty */ })
+    return () => { cancelled = true }
+  }, [])
 
   async function loadAll() {
     setLoading(true)
@@ -120,6 +137,26 @@ export default function TimetablesPage() {
   }
 
   const dayEntries = selected?.entries.filter((e) => e.day_of_week === activeDay) ?? []
+
+  // Distinct teacher names referenced by the selected timetable, matched
+  // case-insensitively to the teachers list so we can render live-status tiles.
+  const liveTeachers = useMemo(() => {
+    if (!selected) return [] as { id: number; name: string }[]
+    const namesLower = new Set<string>()
+    for (const e of selected.entries) {
+      const n = e.teacher?.trim()
+      if (n) namesLower.add(n.toLowerCase())
+    }
+    const matched: { id: number; name: string }[] = []
+    const seen = new Set<number>()
+    for (const t of teachers) {
+      if (namesLower.has(t.name.trim().toLowerCase()) && !seen.has(t.id)) {
+        matched.push({ id: t.id, name: t.name })
+        seen.add(t.id)
+      }
+    }
+    return matched.sort((a, b) => a.name.localeCompare(b.name))
+  }, [selected, teachers])
 
   return (
     <div className="flex h-full">
@@ -213,6 +250,40 @@ export default function TimetablesPage() {
               <p className="text-xs text-zinc-400 mt-1">
                 Tile ID to use in builder config: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-zinc-600 dark:text-zinc-300">{selected.id}</code>
               </p>
+            </div>
+
+            {/* Live teacher status — current class or cabin fallback */}
+            <div className="mb-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm">📡</span>
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                  Live teacher status
+                </h2>
+                <span className="ml-auto text-[10px] text-zinc-400">
+                  {liveTeachers.length} teacher{liveTeachers.length === 1 ? "" : "s"} · today
+                </span>
+              </div>
+              {liveTeachers.length === 0 ? (
+                <p className="text-xs text-zinc-500 py-2">
+                  No teachers in this timetable match a teacher record. Add entries with a teacher
+                  name that exists in <a href="/admin/teachers" className="text-blue-500 hover:underline">/admin/teachers</a>.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {liveTeachers.map((t) => (
+                    <div
+                      key={t.id}
+                      className="h-28 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-900 overflow-hidden"
+                    >
+                      <TeacherStatusWidget
+                        teacherId={t.id}
+                        timetableId={selected.id}
+                        compact
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Day tabs */}

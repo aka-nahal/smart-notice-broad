@@ -199,12 +199,7 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
             </div>
           ) : previewSrc ? (
             <>
-              <video src={previewSrc} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="rounded-full bg-black/50 p-2">
-                  <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                </div>
-              </div>
+              <video src={previewSrc} className="h-full w-full object-cover" muted autoPlay loop playsInline preload="auto" />
               <span className="absolute bottom-1 left-2 text-[9px] text-white/60 bg-black/50 px-1 rounded">
                 {currentMediaId ? `Media #${currentMediaId}` : "External URL"}
               </span>

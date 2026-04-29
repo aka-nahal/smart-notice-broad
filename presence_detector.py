@@ -120,6 +120,28 @@ class PresenceDetector(threading.Thread):
 
     # ── Capture backends ─────────────────────────────────────────────────────
 
+    def _list_cameras(self) -> None:
+        """Run `rpicam-hello --list-cameras` once at startup and log the
+        result. Pure diagnostic - tells us which sensor libcamera sees so
+        that "no camera" failures further down are easier to debug."""
+        binary = shutil.which("rpicam-hello") or shutil.which("libcamera-hello")
+        if not binary:
+            return
+        try:
+            out = subprocess.run(
+                [binary, "--list-cameras"],
+                capture_output=True, text=True, timeout=3,
+            )
+        except Exception as e:
+            print(f"  presence: {binary} --list-cameras failed: {e}")
+            return
+        text = (out.stdout or out.stderr or "").strip()
+        if not text:
+            return
+        # Indent every line so it nests under the "presence:" prefix.
+        for line in text.splitlines():
+            print(f"  presence:   {line}")
+
     def _open_rpicam(self) -> Optional[_RpicamStream]:
         """Start `rpicam-vid` (or its legacy alias) as a subprocess feeding
         raw YUV420 to stdout. Returns None if neither binary is present or
@@ -127,6 +149,7 @@ class PresenceDetector(threading.Thread):
         binary = shutil.which("rpicam-vid") or shutil.which("libcamera-vid")
         if not binary:
             return None
+        self._list_cameras()
         try:
             stream = _RpicamStream(binary, CAPTURE_W, CAPTURE_H, CAPTURE_FPS)
         except Exception as e:

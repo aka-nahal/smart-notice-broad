@@ -189,6 +189,19 @@ export interface TileConfig {
   timetableId?: number | string
   timetableShowTeacher?: boolean | string
   timetableShowRoom?: boolean | string
+  // Teacher status
+  teacherId?: number | string
+  // Teachers list (auto-scrolling roster)
+  teachersFilter?: "all" | "available" | "in_class" | "busy" | string
+  teachersScrollSpeed?: number   // pixels per second; 0 = no auto-scroll
+  teachersShowAvatar?: boolean | string
+  teachersTitle?: string
+  // Stack — Apple Widget Stack: rotates inline child widgets at an interval
+  stackChildren?: string             // JSON array of StackChild
+  stackInterval?: number             // seconds between rotations (default 8)
+  stackTransition?: "fade" | "slide" | "none" | string
+  stackShowDots?: boolean | string   // default true
+  stackPaused?: boolean | string     // optional pause; default false (rotates)
   // Layout / typography
   textAlign?: "left" | "center" | "right" | string
   verticalAlign?: "top" | "center" | "bottom" | string
@@ -274,6 +287,72 @@ export const TEACHER_STATUSES: { value: TeacherStatus; label: string; color: str
   { value: "unavailable", label: "Unavailable", color: "red", icon: "❌" },
 ]
 
+// ---- Period (master bell schedule) ----
+
+export interface PeriodRead {
+  id: number
+  name: string
+  start_time: string
+  end_time: string
+  sort_order: number
+}
+
+export interface PeriodCreate {
+  name: string
+  start_time: string
+  end_time: string
+  sort_order?: number
+}
+
+export interface PeriodUpdate {
+  name?: string
+  start_time?: string
+  end_time?: string
+  sort_order?: number
+}
+
+// ---- Teacher schedule grid (teacher × day × period) ----
+
+export interface ScheduleSlotRead {
+  id: number
+  teacher_id: number
+  day_of_week: number   // 0=Mon … 5=Sat
+  period_id: number
+  subject: string | null
+  room: string | null
+}
+
+export interface ScheduleSlotUpsert {
+  day_of_week: number
+  period_id: number
+  subject?: string | null
+  room?: string | null
+}
+
+// ---- Teacher display format (Settings tab) ----
+
+export interface TeacherDisplaySettings {
+  timeFormat: "12h" | "24h"
+  showSubject: boolean
+  showRoom: boolean
+  showNextClass: boolean
+  showStatusNote: boolean
+  cardStyle: "compact" | "detailed"
+}
+
+export const DEFAULT_TEACHER_DISPLAY: TeacherDisplaySettings = {
+  timeFormat: "24h",
+  showSubject: true,
+  showRoom: true,
+  showNextClass: true,
+  showStatusNote: true,
+  cardStyle: "detailed",
+}
+
+export const TEACHER_DISPLAY_SETTINGS_KEY = "teacher_display"
+
+export const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
+
 // ---- Media ----
 
 export interface MediaAsset {
@@ -316,6 +395,9 @@ export const TILE_TYPES = [
   { value: "carousel", label: "Carousel", icon: "🎠" },
   { value: "pdf", label: "Document", icon: "📄" },
   { value: "emergency", label: "Emergency", icon: "🚨" },
+  { value: "teacher_status", label: "Teacher Status", icon: "👤" },
+  { value: "teachers_list", label: "Teachers List", icon: "👥" },
+  { value: "stack", label: "Stack", icon: "🗂️" },
 ] as const
 
 export const TILE_COLORS: Record<string, string> = {
@@ -329,6 +411,9 @@ export const TILE_COLORS: Record<string, string> = {
   weather: "border-teal-500/50 bg-teal-500/10",
   carousel: "border-orange-500/50 bg-orange-500/10",
   pdf: "border-rose-500/50 bg-rose-500/10",
+  teacher_status: "border-indigo-500/50 bg-indigo-500/10",
+  teachers_list: "border-indigo-500/50 bg-indigo-500/10",
+  stack: "border-fuchsia-500/50 bg-fuchsia-500/10",
 }
 
 export const TILE_COLORS_SELECTED: Record<string, string> = {
@@ -342,4 +427,7 @@ export const TILE_COLORS_SELECTED: Record<string, string> = {
   weather: "border-teal-400 bg-teal-500/20 ring-1 ring-teal-400/50",
   carousel: "border-orange-400 bg-orange-500/20 ring-1 ring-orange-400/50",
   pdf: "border-rose-400 bg-rose-500/20 ring-1 ring-rose-400/50",
+  teacher_status: "border-indigo-400 bg-indigo-500/20 ring-1 ring-indigo-400/50",
+  teachers_list: "border-indigo-400 bg-indigo-500/20 ring-1 ring-indigo-400/50",
+  stack: "border-fuchsia-400 bg-fuchsia-500/20 ring-1 ring-fuchsia-400/50",
 }

@@ -5,14 +5,11 @@ import { useEffect, useRef, useState } from "react"
 interface Props {
   url: string
   poster?: string
-  autoplay?: boolean
   loop?: boolean
-  controls?: boolean
-  muted?: boolean
   /** "cover" crops to fill, "contain" letterboxes (no cropping), "fill" stretches to exact tile size. */
   fit?: "cover" | "contain" | "fill"
-  /** Show a small play indicator when paused. */
-  showOverlay?: boolean
+  /** When true, overlays a small debug HUD with playback state. Toggle by appending ?vdebug to the URL. */
+  debugHud?: boolean
 }
 
 const YOUTUBE_RE =
@@ -24,42 +21,65 @@ export function extractYouTubeId(url: string): string | null {
 }
 
 /**
- * Unified video player for the display canvas. Handles:
- *  - YouTube embeds (autoplay, mute, loop, no chrome by default)
- *  - Direct video files (HTML5 <video>) with proper fit, poster, error fallback
- *  - Failed/missing source: friendly placeholder instead of a broken element
+ * Display-only video player. Always autoplay, always loop, always muted, no
+ * controls, no overlay. Aggressively retries play() on a 2s tick because
+ * WebKit2GTK (used by pywebview on Pi/Linux) silently rejects autoplay on
+ * a freshly-mounted element under some media policies — the retry self-heals
+ * without any user gesture.
  */
-export function VideoPlayer({
-  url,
-  poster,
-  autoplay = true,
-  loop = true,
-  controls = false,
-  muted = true,
-  fit = "cover",
-  showOverlay = true,
-}: Props) {
+export function VideoPlayer({ url, poster, loop = true, fit = "cover", debugHud = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [errored, setErrored] = useState(false)
-  const [paused, setPaused] = useState(!autoplay)
+  const [hud, setHud] = useState<string>("init")
 
-  // Autoplay rules require muted; reflect changes if user toggles mute.
   useEffect(() => {
-    if (videoRef.current) videoRef.current.muted = muted
-  }, [muted])
-
-  // Kick off playback explicitly. Handles browsers that ignore the autoplay
-  // attribute on a freshly-mounted video and the case where the play() promise
-  // is silently rejected (returns a Promise<void> that we must catch).
-  useEffect(() => {
-    if (!autoplay || !videoRef.current) return
     const v = videoRef.current
-    v.muted = true  // browsers require muted for unattended autoplay
-    const p = v.play()
-    if (p && typeof p.catch === "function") {
-      p.catch(() => setPaused(true))
+    if (!v) return
+    v.muted = true
+
+    // WebKit2GTK (pywebview's renderer) is unreliable about looping
+    // Range-served video. Both <video loop> and currentTime=0 after
+    // `ended` can leave the element stuck at the last frame. The robust
+    // recovery is to call load(), which re-issues the request from byte
+    // 0 and gets us a fresh, playable buffer.
+    let replays = 0
+    let lastErr = ""
+    const replay = (reason: string) => {
+      replays += 1
+      v.muted = true
+      try { v.currentTime = 0 } catch { /* not seekable yet */ }
+      const p = v.play()
+      if (p && typeof p.catch === "function") {
+        p.catch((e: Error) => {
+          lastErr = `play:${e.name}`
+          try { v.load() } catch { /* ignore */ }
+          v.play().catch((e2: Error) => { lastErr = `reload:${e2.name}` })
+        })
+      }
+      if (debugHud) setHud(`replay#${replays} (${reason}) err=${lastErr || "-"}`)
     }
-  }, [autoplay, url])
+
+    const tick = () => {
+      if (debugHud) {
+        setHud(
+          `t=${v.currentTime.toFixed(2)}/${Number.isFinite(v.duration) ? v.duration.toFixed(2) : "?"} ` +
+          `p=${v.paused} e=${v.ended} rs=${v.readyState} ns=${v.networkState} ` +
+          `replays=${replays} err=${lastErr || "-"}`,
+        )
+      }
+      if (v.ended) replay("ended")
+      else if (v.paused) replay("paused")
+      // Pre-empt buggy `ended`: if we're at the tail, force loop ourselves.
+      else if (v.duration && Number.isFinite(v.duration) && v.currentTime >= v.duration - 0.15) replay("tail")
+    }
+
+    v.addEventListener("ended", () => replay("ended-evt"))
+    tick()
+    const interval = setInterval(tick, 500)
+    return () => {
+      clearInterval(interval)
+    }
+  }, [url, debugHud])
 
   if (!url) {
     return (
@@ -72,11 +92,11 @@ export function VideoPlayer({
   const ytId = extractYouTubeId(url)
   if (ytId) {
     const params = new URLSearchParams({
-      autoplay: autoplay ? "1" : "0",
+      autoplay: "1",
       mute: "1",
       loop: loop ? "1" : "0",
       playlist: ytId,
-      controls: controls ? "1" : "0",
+      controls: "0",
       modestbranding: "1",
       rel: "0",
       playsinline: "1",
@@ -103,33 +123,24 @@ export function VideoPlayer({
   }
 
   return (
-    <div className="relative h-full w-full bg-black">
+    <>
       <video
         ref={videoRef}
         src={url}
         poster={poster}
-        autoPlay={autoplay}
+        autoPlay
         loop={loop}
-        muted={muted}
+        muted
         playsInline
-        controls={controls}
         preload="auto"
         onError={() => setErrored(true)}
-        onPause={() => setPaused(true)}
-        onPlay={() => setPaused(false)}
-        className={`absolute inset-0 h-full w-full ${fit === "fill" ? "object-fill" : fit === "contain" ? "object-contain" : "object-cover"}`}
+        className={`absolute inset-0 h-full w-full bg-black ${fit === "fill" ? "object-fill" : fit === "contain" ? "object-contain" : "object-cover"}`}
       />
-      {showOverlay && paused && !controls && (
-        <button
-          onClick={() => videoRef.current?.play()}
-          className="absolute inset-0 flex items-center justify-center bg-black/40 text-white transition-opacity hover:bg-black/30"
-          aria-label="Play video"
-        >
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-          </span>
-        </button>
+      {debugHud && (
+        <div className="pointer-events-none absolute left-1 top-1 z-10 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono text-amber-300">
+          {hud}
+        </div>
       )}
-    </div>
+    </>
   )
 }

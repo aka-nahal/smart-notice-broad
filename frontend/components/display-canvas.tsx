@@ -6,9 +6,12 @@ import type { DisplayBundle, DisplayTileDTO, TileConfig } from "@/lib/types"
 import { ClockWidget } from "@/components/clock-widget"
 import { WeatherWidget } from "@/components/weather-widget"
 import { CarouselDisplay, parseSlides } from "@/components/carousel-widget"
+import { StackDisplay, parseStackChildren, type StackChild } from "@/components/stack-widget"
 import { MediaImage } from "@/components/media-image"
 import { SensorWidget } from "@/components/sensor-widget"
 import { TimetableWidget } from "@/components/timetable-widget"
+import { TeacherStatusWidget } from "@/components/teacher-status-widget"
+import { TeachersListWidget } from "@/components/teachers-list-widget"
 import { VideoPlayer } from "@/components/video-player"
 import { PdfViewer } from "@/components/pdf-viewer"
 
@@ -28,9 +31,65 @@ function tileSizeClass(w: number, h: number): "xs" | "sm" | "md" | "lg" | "xl" {
   return "xl"
 }
 
-function WidgetContent({ type, tileW, tileH, config, mediaUrl }: { type: string; tileW: number; tileH: number; config: TileConfig; mediaUrl?: string | null }) {
+function WidgetContent({
+  type, tileW, tileH, config, mediaUrl, mediaId,
+}: {
+  type: string
+  tileW: number
+  tileH: number
+  config: TileConfig
+  mediaUrl?: string | null
+  mediaId?: number | null
+}) {
   const size = tileSizeClass(tileW, tileH)
+  // The bundle normally fills `mediaUrl` from `media_id`, but if that
+  // column race-loses an update we'd show "No video configured" while the
+  // tile clearly has a media asset attached. Deriving the URL from the
+  // tile's own media_id is a safe local fallback.
+  const mediaSrc = mediaUrl || (mediaId ? `/api/media/${mediaId}` : undefined)
 
+  if (type === "stack") {
+    const stackItems = parseStackChildren(config.stackChildren)
+    const interval = typeof config.stackInterval === "number" ? config.stackInterval : 8
+    const transition = (config.stackTransition as "fade" | "slide" | "none") || "slide"
+    const showDots = config.stackShowDots !== "false" && config.stackShowDots !== false
+    const paused = config.stackPaused === "true" || config.stackPaused === true
+    return (
+      <StackDisplay
+        items={stackItems}
+        interval={interval}
+        transition={transition}
+        showDots={showDots}
+        paused={paused}
+        renderChild={(child: StackChild) => {
+          // Stacks store inline notice/emergency text directly (no DB
+          // linkage). Render a simple text card for those cases.
+          if (child.type === "notice" || child.type === "emergency") {
+            return (
+              <StackNoticeBlock
+                inline={child.inline_notice ?? {}}
+                config={child.config}
+                emergency={child.type === "emergency"}
+              />
+            )
+          }
+          // Defensive: a stack-of-stacks would recurse forever.
+          if (child.type === "stack") {
+            return <p className="p-2 text-sm text-zinc-500">Nested stacks are not supported.</p>
+          }
+          return (
+            <WidgetContent
+              type={child.type}
+              tileW={tileW}
+              tileH={tileH}
+              config={child.config}
+              mediaId={child.media_id ?? null}
+            />
+          )
+        }}
+      />
+    )
+  }
   if (type === "clock")
     return (
       <div className="flex h-full flex-col items-center justify-center">
@@ -111,21 +170,25 @@ function WidgetContent({ type, tileW, tileH, config, mediaUrl }: { type: string;
     )
   }
   if (type === "video") {
-    const videoUrl = (config.videoUrl as string | undefined) || mediaUrl || undefined
+    const videoUrl = (config.videoUrl as string | undefined) || mediaSrc
     if (!videoUrl) return <p className="text-sm text-zinc-500">No video configured</p>
+    // Kiosk videos always autoplay + loop with no chrome and no pause
+    // overlay — a play button on a notice board doesn't make sense and
+    // there's nobody to click it. The inspector's autoplay/loop/controls
+    // toggles are intentionally ignored on the display.
+    // Append `?vdebug` to the display URL to overlay a per-tile playback HUD.
+    const debugHud = typeof window !== "undefined" && window.location.search.includes("vdebug")
     return (
       <VideoPlayer
         url={videoUrl}
         poster={config.videoPoster as string | undefined}
-        autoplay={config.videoAutoplay !== "false" && config.videoAutoplay !== false}
-        loop={config.videoLoop !== "false" && config.videoLoop !== false}
-        controls={config.videoControls === "true" || config.videoControls === true}
         fit={(config.videoFit as "cover" | "contain" | "fill") || "cover"}
+        debugHud={debugHud}
       />
     )
   }
   if (type === "pdf") {
-    const pdfUrl = (config.pdfUrl as string | undefined) || mediaUrl || undefined
+    const pdfUrl = (config.pdfUrl as string | undefined) || mediaSrc
     if (!pdfUrl) return <p className="text-sm text-zinc-500">No document configured</p>
     return (
       <PdfViewer
@@ -157,7 +220,85 @@ function WidgetContent({ type, tileW, tileH, config, mediaUrl }: { type: string;
       />
     )
   }
+  if (type === "teacher_status") {
+    const tId = config.teacherId
+    if (!tId) return <p className="text-sm text-zinc-500">Set teacherId in tile config</p>
+    return (
+      <TeacherStatusWidget
+        teacherId={tId as number}
+        timetableId={config.timetableId as number | undefined}
+        compact={size === "xs" || size === "sm"}
+      />
+    )
+  }
+  if (type === "teachers_list") {
+    return (
+      <TeachersListWidget
+        filter={(config.teachersFilter as string) || "all"}
+        scrollSpeed={typeof config.teachersScrollSpeed === "number" ? config.teachersScrollSpeed : 25}
+        showAvatar={config.teachersShowAvatar !== "false" && config.teachersShowAvatar !== false}
+        title={(config.teachersTitle as string) || "Teachers"}
+      />
+    )
+  }
   return <p className="text-sm text-zinc-500">Widget: {type}</p>
+}
+
+function StackNoticeBlock({
+  inline, config, emergency = false,
+}: {
+  inline: NonNullable<StackChild["inline_notice"]>
+  config: TileConfig
+  emergency?: boolean
+}) {
+  const align = (config.textAlign as string) ?? "left"
+  const valign = (config.verticalAlign as string) ?? "center"
+  const alignCls = align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"
+  const itemAlignCls = align === "center" ? "items-center" : align === "right" ? "items-end" : "items-start"
+  const valignCls = valign === "center" ? "justify-center" : valign === "bottom" ? "justify-end" : "justify-start"
+  const titleStyle: React.CSSProperties = {
+    ...(config.fontFamily && { fontFamily: config.fontFamily }),
+    ...(config.titleSize && { fontSize: config.titleSize }),
+    ...(config.titleColor && { color: config.titleColor as string }),
+  }
+  const bodyStyle: React.CSSProperties = {
+    ...(config.fontFamily && { fontFamily: config.fontFamily }),
+    ...(config.bodySize && { fontSize: config.bodySize }),
+    ...(config.textColor && { color: config.textColor as string }),
+  }
+  return (
+    <div className={`relative flex h-full w-full flex-col gap-1 p-4 ${valignCls} ${itemAlignCls} ${emergency ? "animate-pulse-subtle bg-red-950/20" : ""}`}>
+      {emergency && (
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-600 via-red-500 to-red-600" />
+      )}
+      {inline.category && (
+        <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
+          emergency ? "bg-red-500/20 text-red-300" : "bg-white/10 text-zinc-400"
+        }`}>
+          {inline.category}
+        </span>
+      )}
+      {inline.title && (
+        <h2
+          className={`text-balance font-semibold leading-snug ${emergency ? "text-red-100" : "text-white"} ${alignCls}`}
+          style={titleStyle}
+        >
+          {inline.title}
+        </h2>
+      )}
+      {inline.body && (
+        <p
+          className={`mt-1 leading-relaxed ${emergency ? "text-red-200/85" : "text-zinc-300"} ${alignCls}`}
+          style={bodyStyle}
+        >
+          {inline.body}
+        </p>
+      )}
+      {!inline.title && !inline.body && (
+        <p className="text-sm text-zinc-500">Empty {emergency ? "alert" : "notice"}</p>
+      )}
+    </div>
+  )
 }
 
 function NoticeContent({
@@ -236,7 +377,7 @@ function TileCardInner({ item }: { item: DisplayTileDTO }) {
     x: tile.grid_x, y: tile.grid_y, w: tile.grid_w, h: tile.grid_h
   })
   const hidden = !is_visible_by_schedule
-  const isWidget = ["clock", "ticker", "banner", "weather", "video", "carousel", "sensor", "timetable", "pdf"].includes(tile.tile_type)
+  const isWidget = ["clock", "ticker", "banner", "weather", "video", "carousel", "sensor", "timetable", "teacher_status", "teachers_list", "pdf", "stack"].includes(tile.tile_type)
   const hasMedia = !!media_url
   const hasNotice = !!notice
   const config = parseTileConfig(tile.config_json)
@@ -267,7 +408,7 @@ function TileCardInner({ item }: { item: DisplayTileDTO }) {
       )}
 
       {isWidget ? (
-        <WidgetContent type={tile.tile_type} tileW={tile.grid_w} tileH={tile.grid_h} config={config} mediaUrl={media_url} />
+        <WidgetContent type={tile.tile_type} tileW={tile.grid_w} tileH={tile.grid_h} config={config} mediaUrl={media_url} mediaId={tile.media_id} />
       ) : isMediaOnly ? (
         hasMedia ? (
           <MediaImage src={media_url!} alt={notice?.title} className="absolute inset-0 h-full w-full object-cover" />

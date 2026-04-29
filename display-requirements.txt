@@ -1,14 +1,12 @@
-# Requirements for the display launcher (launcher.py)
-# Install with:  pip install -r display-requirements.txt
+# Display launcher deps (Raspberry Pi 5 / Debian Trixie).
+# Installed automatically by start.sh into backend/.venv.
 #
-# On RPi / Linux, also run:
-#   sudo apt install python3-gi gir1.2-webkit2-4.0 libgtk-3-0
+# System packages (run once):
+#   sudo apt install -y python3-venv python3-gi gir1.2-webkit2-4.1 \
+#                       libgtk-3-0 nodejs npm network-manager
 #
-# Camera-based presence detection (drives the lock screen):
-#   - On Raspberry Pi with Camera 3, install picamera2 via apt:
-#       sudo apt install -y python3-picamera2
-#   - opencv-python provides the Haar face detector and is also the USB-webcam
-#     fallback on desktop machines. Install via pip below.
+# Camera-based presence detection (optional):
+#   sudo apt install -y python3-picamera2 rpicam-apps
 
 pywebview>=5.0
 screeninfo>=0.8

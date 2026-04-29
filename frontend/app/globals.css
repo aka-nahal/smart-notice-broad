@@ -112,6 +112,24 @@ body {
   will-change: transform, opacity;
 }
 
+/* Stack tile (Apple-style widget stack) — incoming child animation. */
+@keyframes stack-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-stack-fade {
+  animation: stack-fade 600ms var(--ease-out-soft) both;
+  will-change: opacity;
+}
+@keyframes stack-slide-up {
+  from { opacity: 0; transform: translate3d(0, 18%, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.animate-stack-slide-up {
+  animation: stack-slide-up 520ms var(--ease-out-soft) both;
+  will-change: opacity, transform;
+}
+
 /* Display canvas wrapper: forces dark scheme regardless of admin theme. */
 .force-dark {
   color-scheme: dark;

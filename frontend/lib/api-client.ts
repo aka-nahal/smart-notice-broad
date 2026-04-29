@@ -19,6 +19,11 @@ import type {
   TeacherRead,
   TeacherCreate,
   TeacherUpdate,
+  PeriodRead,
+  PeriodCreate,
+  PeriodUpdate,
+  ScheduleSlotRead,
+  ScheduleSlotUpsert,
 } from "./types"
 
 // ---- Base fetch wrapper ----
@@ -185,9 +190,56 @@ export const teachers = {
 
   delete: (id: number) =>
     request<void>(`/api/teachers/${id}`, { method: "DELETE" }),
+
+  // Schedule grid
+  schedule: (id: number) =>
+    request<ScheduleSlotRead[]>(`/api/teachers/${id}/schedule`),
+
+  upsertSlot: (id: number, slot: ScheduleSlotUpsert) =>
+    request<ScheduleSlotRead | null>(`/api/teachers/${id}/schedule`, {
+      method: "PUT",
+      body: JSON.stringify(slot),
+    }),
+
+  deleteSlot: (id: number, slotId: number) =>
+    request<void>(`/api/teachers/${id}/schedule/${slotId}`, { method: "DELETE" }),
+}
+
+// ---- Periods ----
+
+export const periods = {
+  list: () => request<PeriodRead[]>("/api/periods"),
+
+  create: (data: PeriodCreate) =>
+    request<PeriodRead>("/api/periods", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: PeriodUpdate) =>
+    request<PeriodRead>(`/api/periods/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    request<void>(`/api/periods/${id}`, { method: "DELETE" }),
+}
+
+// ---- App settings (generic key/value, JSON values) ----
+
+export const appSettings = {
+  get: <T = unknown>(key: string) =>
+    request<{ key: string; value: T | null }>(`/api/settings/${encodeURIComponent(key)}`),
+
+  put: <T = unknown>(key: string, value: T) =>
+    request<{ key: string; value: T }>(`/api/settings/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    }),
 }
 
 // ---- Convenience re-export ----
 
-const api = { layouts, versions, tiles, notices, media, display, teachers }
+const api = { layouts, versions, tiles, notices, media, display, teachers, periods, appSettings }
 export default api

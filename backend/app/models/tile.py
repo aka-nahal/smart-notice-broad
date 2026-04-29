@@ -20,6 +20,7 @@ class TileType(str, Enum):
     EMERGENCY = "emergency"
     SENSOR = "sensor"
     TIMETABLE = "timetable"
+    STACK = "stack"
     CUSTOM = "custom"
 
 

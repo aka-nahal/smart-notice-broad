@@ -1,31 +1,27 @@
 #!/usr/bin/env python3
-"""
-RunaNet Display Launcher
-========================
-Starts the FastAPI backend, the Next.js frontend, then opens a native
-PyWebView window showing the display page.
+"""RunaNet display launcher — Raspberry Pi 5 / Debian Trixie.
 
-On Raspberry Pi OS (Bookworm) the window is rendered by GTK + WebKit2,
-so no Chromium installation is needed.
+Starts the FastAPI backend and Next.js frontend bound to 0.0.0.0 so any
+device on the LAN can reach them, then opens a native pywebview window
+(GTK + WebKit2) showing the display page.
 
-Usage
------
-    python launcher.py                         # fullscreen, default ports
-    python launcher.py --no-fullscreen         # windowed (development)
-    python launcher.py --backend-port 8001 --port 3000
-    python launcher.py --build                 # run `npm build` first
+On a Raspberry Pi with no network connectivity at startup, NetworkManager
+is asked to bring up a Wi-Fi hotspot named ``RunaNet`` (password
+``0987654321``) so phones/laptops can still reach the admin UI. On a
+laptop/desktop the hotspot logic is skipped — the launcher just runs on
+whatever network you're already on.
 
-Requirements
-------------
-    pip install pywebview
-    # RPi / Linux only:
-    sudo apt install python3-gi gir1.2-webkit2-4.0 libgtk-3-0
+Usage:
+    python launcher.py                 # fullscreen, default ports
+    python launcher.py --no-fullscreen # windowed (development)
+    python launcher.py --build         # run `npm run build` first
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import platform
 import signal
 import socket
 import subprocess
@@ -33,44 +29,454 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Optional
 
-# Force UTF-8 on stdout/stderr so the decorative unicode in status messages
-# doesn't blow up on Windows consoles that default to cp1252. Guarded for
-# older Pythons that lack `reconfigure`.
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
-    except Exception:
-        pass
+ROOT = Path(__file__).resolve().parent
+BACKEND_DIR = ROOT / "backend"
+FRONTEND_DIR = ROOT / "frontend"
+VENV_PY = BACKEND_DIR / ".venv" / "bin" / "python"
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.join(ROOT, "backend")
-FRONTEND_DIR = os.path.join(ROOT, "frontend")
+HOTSPOT_SSID = "RunaNet"
+HOTSPOT_PASSWORD = "0987654321"
+HOTSPOT_CON_NAME = "RunaNet-Hotspot"
+
+
+# ── Platform detection ───────────────────────────────────────────────────────
+
+def detect_platform() -> tuple[str, str]:
+    """Return ``(kind, model)`` where ``kind`` is one of:
+      * ``"rpi"``     — Raspberry Pi (any model)
+      * ``"laptop"``  — desktop/laptop (any non-Pi machine)
+    and ``model`` is a human-readable string for logging.
+
+    The Pi check reads ``/proc/device-tree/model``, which on every Pi
+    contains a string like ``"Raspberry Pi 5 Model B Rev 1.0"`` and does
+    not exist on x86 systems."""
+    arch = platform.machine() or "unknown"
+    dt_model = Path("/proc/device-tree/model")
+    if dt_model.is_file():
+        try:
+            # The device-tree file is NUL-terminated; strip it.
+            model = dt_model.read_text(errors="replace").strip("\x00 \n")
+            if "raspberry pi" in model.lower():
+                return "rpi", f"{model} ({arch})"
+        except OSError:
+            pass
+    return "laptop", f"{platform.system()} {platform.release()} ({arch})"
+
+
+# ── Chromium kiosk (preferred when available) ────────────────────────────────
+
+_CHROMIUM_CANDIDATES = (
+    "chromium", "chromium-browser",
+    "google-chrome-stable", "google-chrome",
+    "microsoft-edge-stable", "microsoft-edge",
+    "brave-browser", "brave",
+)
+
+
+def find_chromium() -> Optional[str]:
+    """Path to a Chromium-family browser, or None. Chromium handles
+    HTML5 autoplay/loop reliably out of the box, where WebKit2GTK does not —
+    so we prefer it whenever it's installed."""
+    import shutil
+    for name in _CHROMIUM_CANDIDATES:
+        path = shutil.which(name)
+        if path:
+            return path
+    return None
+
+
+def launch_chromium_kiosk(
+    binary: str,
+    url: str,
+    *,
+    fullscreen: bool,
+    width: int,
+    height: int,
+) -> subprocess.Popen:
+    """Open Chromium in kiosk/app mode pointing at ``url``. Uses an isolated
+    profile under ``data/kiosk-profile`` so the kiosk doesn't inherit the
+    user's regular browser bookmarks/extensions."""
+    profile_dir = ROOT / "data" / "kiosk-profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        binary,
+        f"--user-data-dir={profile_dir}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        # The two flags that actually matter for our case: allow muted (and
+        # unmuted) autoplay without a user gesture, and skip Translate UI.
+        "--autoplay-policy=no-user-gesture-required",
+        "--disable-features=TranslateUI,Translate",
+        # Kiosk niceties — no swipe-back, no pinch-zoom, no session-restore
+        # banner after a crash, no infobars.
+        "--disable-pinch",
+        "--overscroll-history-navigation=0",
+        "--disable-session-crashed-bubble",
+        "--disable-infobars",
+        "--noerrdialogs",
+        # Force a clean window position; some WMs otherwise restore from
+        # the last session.
+        "--window-position=0,0",
+        f"--window-size={width},{height}",
+    ]
+    if fullscreen:
+        cmd.append("--kiosk")
+        cmd.append(url)
+    else:
+        cmd.append(f"--app={url}")
+    return subprocess.Popen(cmd, start_new_session=True)
+
+
+# ── WebKit2GTK autoplay policy ───────────────────────────────────────────────
+
+def _enable_webkit_autoplay() -> None:
+    """Drop WebKit2GTK's autoplay block so kiosk videos start without a
+    user gesture. WebKit applies the policy in two layers:
+
+      1. ``WebKitSettings.media-playback-requires-user-gesture`` (legacy,
+         pre-2.30). Often already False on modern builds.
+      2. ``WebKitWebsitePolicies.autoplay`` (per-site policy, 2.30+). This
+         is what's actually enforced on current GTK builds — flipping only
+         (1) leaves play() rejecting with ``NotAllowedError``.
+
+    Both must be set or muted autoplay still gets blocked. We hook into
+    pywebview's GTK BrowserView constructor since pywebview itself exposes
+    no API to reach either knob.
+    """
+    try:
+        import webview.platforms.gtk as gtk_platform  # type: ignore
+    except Exception as e:
+        print(f"  webkit autoplay tweak skipped: {e}")
+        return
+
+    if getattr(gtk_platform.BrowserView, "_runanet_patched", False):
+        return
+
+    # Match whatever WebKit2 ABI pywebview imported so our enums and types
+    # come from the same gi namespace it's using.
+    try:
+        import gi  # type: ignore
+        for ver in ("4.1", "4.0"):
+            try:
+                gi.require_version("WebKit2", ver)
+                break
+            except (ValueError, AttributeError):
+                continue
+        from gi.repository import WebKit2  # type: ignore
+    except Exception as e:
+        print(f"  webkit autoplay tweak skipped: {e}")
+        return
+
+    original_init = gtk_platform.BrowserView.__init__
+
+    def patched_init(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        original_init(self, *args, **kwargs)
+        # Layer 1: the legacy WebKitSettings flag (still respected on some
+        # builds and harmless when superseded by WebsitePolicies).
+        try:
+            settings = self.webview.get_settings()
+            settings.set_property("media-playback-requires-user-gesture", False)
+            for prop in ("enable-mediasource", "enable-smooth-scrolling"):
+                try: settings.set_property(prop, True)
+                except Exception: pass
+        except Exception as e:
+            print(f"  webkit settings tweak: {e}")
+
+        # Layer 2: WebsitePolicies (per-navigation autoplay). This is what
+        # WebKit2GTK ≥ 2.30 actually consults; without it play() rejects
+        # with NotAllowedError despite the legacy setting above.
+        # WebView itself doesn't expose a setter, but every navigation
+        # passes through `decide-policy` where we can substitute the
+        # decision with one that carries our policies.
+        def on_decide_policy(_view, decision, _dtype):
+            try:
+                policies = WebKit2.WebsitePolicies(autoplay=WebKit2.AutoplayPolicy.ALLOW)
+                decision.use_with_policies(policies)
+                return True
+            except Exception:
+                return False
+
+        try:
+            self.webview.connect("decide-policy", on_decide_policy)
+        except Exception as e:
+            print(f"  webkit decide-policy hook: {e}")
+
+    gtk_platform.BrowserView.__init__ = patched_init  # type: ignore[method-assign]
+    gtk_platform.BrowserView._runanet_patched = True  # type: ignore[attr-defined]
+
+
+# ── GTK / WebKit dependency hints ────────────────────────────────────────────
+
+def _print_gtk_install_hint() -> None:
+    """Best-effort hint for the GTK/WebKit system packages pywebview needs.
+    PyGObject can't be pip-installed reliably, so we direct the user to the
+    distro package manager instead of pip."""
+    distro = ""
+    os_release = Path("/etc/os-release")
+    if os_release.is_file():
+        for line in os_release.read_text(errors="replace").splitlines():
+            if line.startswith("ID="):
+                distro = line.partition("=")[2].strip().strip('"').lower()
+                break
+
+    print("ERROR: PyGObject (`gi`) not available — pywebview can't open a window.")
+    if distro in {"arch", "cachyos", "manjaro", "endeavouros"}:
+        print("  Install: sudo pacman -S python-gobject webkit2gtk-4.1")
+    elif distro in {"debian", "raspbian", "ubuntu", "linuxmint", "pop"}:
+        print("  Install: sudo apt install python3-gi gir1.2-webkit2-4.1 libgtk-3-0")
+    elif distro in {"fedora", "rhel", "centos"}:
+        print("  Install: sudo dnf install python3-gobject webkit2gtk4.1 gtk3")
+    else:
+        print("  Install your distro's PyGObject + WebKit2GTK 4.1 packages.")
+    print("  Then re-run ./start.sh — the venv is configured to see system packages.")
+
+
+# ── Networking ────────────────────────────────────────────────────────────────
+
+def lan_ip() -> str:
+    """Best-effort LAN IPv4 of this host. Falls back to 127.0.0.1."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("1.1.1.1", 80))
+            return s.getsockname()[0]
+    except OSError:
+        pass
+    try:
+        return socket.gethostbyname(socket.gethostname())
+    except OSError:
+        return "127.0.0.1"
+
+
+def has_connectivity(timeout: float = 3.0) -> bool:
+    """True if we can open a TCP connection to a public host."""
+    for host, port in [("1.1.1.1", 53), ("8.8.8.8", 53)]:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _ufw_enabled() -> bool:
+    """True if ufw is installed and its config marks it enabled. Reads
+    ``/etc/ufw/ufw.conf`` directly — `ufw status` requires root, so we
+    can't ask it from a non-privileged launcher."""
+    cfg = Path("/etc/ufw/ufw.conf")
+    if not cfg.is_file():
+        return False
+    try:
+        for line in cfg.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if line.startswith("ENABLED="):
+                return line.partition("=")[2].strip().strip('"').lower() in ("yes", "true", "on", "1")
+    except OSError:
+        pass
+    return False
+
+
+def ensure_firewall_open(port: int) -> None:
+    """Make sure inbound TCP ``port`` is allowed through ufw, so LAN
+    devices can actually reach the admin/display UI despite the 0.0.0.0
+    bind. Idempotent — ufw silently no-ops on duplicate rules. When we
+    lack the privileges to add the rule, prints the exact command the
+    user needs to run.
+
+    Only the frontend port is opened; the backend stays internal because
+    Next.js proxies API calls to it server-side.
+
+    nftables/iptables aren't auto-touched here — their rule schemas vary
+    too much to safely edit without clobbering user customisations."""
+    if not _have("ufw") or not _ufw_enabled():
+        return
+    try:
+        rc = subprocess.run(
+            ["ufw", "allow", f"{port}/tcp"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"  ufw check skipped: {e}")
+        return
+    if rc.returncode == 0:
+        print(f"  ufw: ensured inbound :{port}/tcp is allowed for LAN access")
+        return
+    print(f"  WARNING: ufw is active and blocking inbound :{port}/tcp.")
+    print(f"  LAN devices won't reach the admin UI until you run:")
+    print(f"    sudo ufw allow {port}/tcp")
+
+
+def ensure_hotspot() -> bool:
+    """Bring up a NetworkManager Wi-Fi hotspot if no network is reachable.
+    Returns True if a hotspot is active (newly created or already running)."""
+    if not _have("nmcli"):
+        print("  nmcli not available — skipping hotspot setup.")
+        return False
+
+    if has_connectivity():
+        return False
+
+    wifi_dev = _wifi_device()
+    if not wifi_dev:
+        print("  no Wi-Fi device found — cannot start hotspot.")
+        return False
+
+    print(f"  no connectivity — starting Wi-Fi hotspot '{HOTSPOT_SSID}' on {wifi_dev}…")
+    # `nmcli device wifi hotspot` creates a fresh ad-hoc-style AP using
+    # NetworkManager's built-in shared mode (handles dnsmasq + NAT for us).
+    rc = subprocess.run(
+        ["nmcli", "device", "wifi", "hotspot",
+         "ifname", wifi_dev,
+         "con-name", HOTSPOT_CON_NAME,
+         "ssid", HOTSPOT_SSID,
+         "password", HOTSPOT_PASSWORD],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    if rc.returncode != 0:
+        print(f"  hotspot start failed: {rc.stdout.strip()}")
+        return False
+    print(f"  hotspot up: SSID={HOTSPOT_SSID} password={HOTSPOT_PASSWORD}")
+    return True
+
+
+def _have(cmd: str) -> bool:
+    import shutil
+    return shutil.which(cmd) is not None
+
+
+# ── Port reclaim ─────────────────────────────────────────────────────────────
+
+# Substrings we recognise as "ours" in a process cmdline. We only kill
+# leftover holders that match one of these — never an unrelated service
+# that happens to share the port.
+_OWN_CMDLINE_MARKERS = (
+    "uvicorn", "app.main:app",
+    "next-server", "next dev", "next start",
+    "launcher.py",
+)
+
+
+def _port_holders(port: int) -> list[int]:
+    """PIDs listening on ``port``. Empty list on parse failure."""
+    if not _have("ss"):
+        return []
+    try:
+        out = subprocess.check_output(
+            ["ss", "-tlnpH", f"sport = :{port}"],
+            text=True, stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    pids: list[int] = []
+    for line in out.splitlines():
+        # ss prints `... users:(("name",pid=12345,fd=N), ...)` — pull every
+        # `pid=NNNN` token, since a port can have multiple listeners.
+        for token in line.split("pid=")[1:]:
+            digits = token.split(",")[0].split(")")[0].strip()
+            if digits.isdigit():
+                pids.append(int(digits))
+    return pids
+
+
+def _is_our_process(pid: int) -> bool:
+    """True if ``pid``'s cmdline looks like a previous RunaNet child."""
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\x00", b" ").decode(errors="replace")
+    except OSError:
+        return False
+    return any(marker in cmdline for marker in _OWN_CMDLINE_MARKERS)
+
+
+def reclaim_port(port: int, label: str) -> None:
+    """If a previous RunaNet run left a process listening on ``port``,
+    SIGTERM (then SIGKILL) it. Refuses to touch foreign processes — those
+    print a clear error and abort, so we don't accidentally nuke an
+    unrelated service the user is running."""
+    pids = _port_holders(port)
+    if not pids:
+        return
+
+    own = [p for p in pids if _is_our_process(p)]
+    foreign = [p for p in pids if p not in own]
+
+    if foreign:
+        print(f"ERROR: port {port} ({label}) held by non-RunaNet process(es): {foreign}")
+        print(f"  Stop them first, e.g.:  ss -tlnp 'sport = :{port}'")
+        sys.exit(1)
+
+    print(f"  reclaiming :{port} from stale {label} pid(s) {own}…")
+    for pid in own:
+        try: os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError: pass
+
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        if not any(_pid_alive(p) for p in own):
+            return
+        time.sleep(0.1)
+
+    for pid in own:
+        if _pid_alive(pid):
+            try: os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError: pass
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _wifi_device() -> Optional[str]:
+    """First Wi-Fi interface name nmcli knows about, or None."""
+    try:
+        out = subprocess.check_output(
+            ["nmcli", "-t", "-f", "DEVICE,TYPE", "device"], text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    for line in out.splitlines():
+        dev, _, typ = line.partition(":")
+        if typ == "wifi":
+            return dev
+    return None
 
 
 # ── Service launchers ─────────────────────────────────────────────────────────
 
+def _python() -> str:
+    """Use the backend venv interpreter when present; fall back to current."""
+    return str(VENV_PY) if VENV_PY.is_file() else sys.executable
+
+
+def _load_dotenv(env: dict[str, str]) -> None:
+    dotenv = BACKEND_DIR / ".env"
+    if not dotenv.is_file():
+        return
+    for line in dotenv.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, _, v = line.partition("=")
+            env.setdefault(k.strip(), v.strip())
+
+
 def start_backend(port: int) -> subprocess.Popen:
-    env = {**os.environ, "PYTHONPATH": BACKEND_DIR}
-    # Load .env if present
-    dotenv = os.path.join(BACKEND_DIR, ".env")
-    if os.path.isfile(dotenv):
-        with open(dotenv) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, _, v = line.partition("=")
-                    env.setdefault(k.strip(), v.strip())
+    env = {**os.environ, "PYTHONPATH": str(BACKEND_DIR)}
+    _load_dotenv(env)
     return subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app",
-         "--host", "127.0.0.1", "--port", str(port),
+        [_python(), "-m", "uvicorn", "app.main:app",
+         "--host", "0.0.0.0", "--port", str(port),
          "--log-level", "warning"],
         cwd=BACKEND_DIR,
         env=env,
-        # POSIX-only: own process group so cleanup() can SIGTERM the whole
-        # tree (uvicorn + any reloader children). Silently ignored on Windows.
-        start_new_session=(os.name != "nt"),
+        # Own process group so cleanup() can SIGTERM the whole tree.
+        start_new_session=True,
     )
 
 
@@ -79,257 +485,28 @@ def start_frontend(port: int, backend_port: int) -> subprocess.Popen:
         **os.environ,
         "PORT": str(port),
         "API_URL": f"http://127.0.0.1:{backend_port}",
-        "HOSTNAME": "127.0.0.1",
+        "HOSTNAME": "0.0.0.0",
     }
-    # `.next/server` alone isn't enough — the dev server writes partial output
-    # there too. BUILD_ID is the canonical "there's a real production build"
-    # marker that `next start` actually requires.
-    next_built = os.path.isfile(os.path.join(FRONTEND_DIR, ".next", "BUILD_ID"))
+    next_built = (FRONTEND_DIR / ".next" / "BUILD_ID").is_file()
     if next_built:
-        cmd = ["npm", "start", "--", "--port", str(port)]
+        cmd = ["npm", "start", "--", "--port", str(port), "--hostname", "0.0.0.0"]
         mode = "production"
     else:
-        cmd = ["npm", "run", "dev", "--", "--port", str(port)]
+        cmd = ["npm", "run", "dev", "--", "--port", str(port), "--hostname", "0.0.0.0"]
         mode = "development"
     print(f"  Frontend mode: {mode}")
-    # On Windows, `npm` is shipped as `npm.cmd`, which CreateProcess won't
-    # resolve without the shell. shell=True is safe here because the command
-    # comes from code, not user input.
     return subprocess.Popen(
         cmd, cwd=FRONTEND_DIR, env=env,
-        shell=(os.name == "nt"),
-        # POSIX-only: own process group so cleanup() can reach the real
-        # `next-server` node process (npm spawns it as a grandchild and
-        # doesn't always forward signals). Without this, retrying start.py
-        # fails with EADDRINUSE on :3000 because the listener survives.
-        start_new_session=(os.name != "nt"),
+        # npm spawns next-server as a grandchild and doesn't always forward
+        # signals; the new session lets cleanup() reach the whole tree.
+        start_new_session=True,
     )
 
 
 def build_frontend() -> bool:
     print("Building frontend (this may take a few minutes on RPi)…")
     env = {**os.environ, "NODE_ENV": "production"}
-    result = subprocess.run(["npm", "run", "build"], cwd=FRONTEND_DIR, env=env)
-    return result.returncode == 0
-
-
-# ── Browser fallback (used when pywebview isn't available) ───────────────────
-
-def _find_browser() -> tuple[str, str] | None:
-    """Return (path, flavor) for Edge or Chrome — whichever is installed.
-    `flavor` is 'edge' or 'chrome' (their kiosk/app flags happen to match)."""
-    candidates: list[tuple[str, str]] = []
-    if os.name == "nt":
-        pf = os.environ.get("PROGRAMFILES", r"C:\Program Files")
-        pfx86 = os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
-        localapp = os.environ.get("LOCALAPPDATA", "")
-        candidates = [
-            (os.path.join(pfx86, r"Microsoft\Edge\Application\msedge.exe"), "edge"),
-            (os.path.join(pf,    r"Microsoft\Edge\Application\msedge.exe"), "edge"),
-            (os.path.join(pf,    r"Google\Chrome\Application\chrome.exe"),  "chrome"),
-            (os.path.join(pfx86, r"Google\Chrome\Application\chrome.exe"),  "chrome"),
-            (os.path.join(localapp, r"Google\Chrome\Application\chrome.exe"), "chrome"),
-        ]
-    else:
-        import shutil as _shutil
-        for name, flavor in [
-            ("microsoft-edge-stable", "edge"), ("microsoft-edge", "edge"),
-            ("google-chrome-stable", "chrome"), ("google-chrome", "chrome"),
-            ("chromium-browser", "chrome"), ("chromium", "chrome"),
-        ]:
-            path = _shutil.which(name)
-            if path:
-                candidates.append((path, flavor))
-
-    for path, flavor in candidates:
-        if path and os.path.isfile(path):
-            return path, flavor
-    return None
-
-
-def open_system_browser_app(
-    url: str,
-    fullscreen: bool,
-    monitor: dict | None = None,
-) -> subprocess.Popen | None:
-    """Launch Edge/Chrome in --app or --kiosk mode so it looks like a native
-    window. Used when pywebview isn't installable (e.g. Python 3.14 on Windows
-    where pythonnet has no wheel). If `monitor` is given, the window opens on
-    that monitor — the Chromium --window-position flag accepts the monitor's
-    top-left X,Y, and kiosk/fullscreen then lands on that screen.
-    Returns the Popen, or None if no browser was found."""
-    found = _find_browser()
-    if not found:
-        return None
-    path, _flavor = found
-    # Isolated profile so the kiosk doesn't inherit the user's bookmarks,
-    # extensions, or tabs. Lives under the repo's data dir.
-    profile_dir = os.path.join(ROOT, "data", "kiosk-profile")
-    os.makedirs(profile_dir, exist_ok=True)
-    args = [
-        path,
-        f"--user-data-dir={profile_dir}",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--disable-features=TranslateUI",
-    ]
-    if monitor:
-        # Position + size hint the kiosk window onto the chosen monitor.
-        args.append(f"--window-position={monitor['x']},{monitor['y']}")
-        args.append(f"--window-size={monitor['width']},{monitor['height']}")
-    args.append("--kiosk" if fullscreen else f"--app={url}")
-    if fullscreen:
-        args.append(url)
-    mode = "kiosk" if fullscreen else "app"
-    where = f" on monitor at ({monitor['x']},{monitor['y']})" if monitor else ""
-    print(f"  opening {os.path.basename(path)} {mode} mode{where}...")
-    return subprocess.Popen(args)
-
-
-# ── Monitor selection ─────────────────────────────────────────────────────────
-
-def _read_digit_with_timeout(valid_range: range, timeout: float) -> Optional[int]:
-    """Prompt the user for a monitor index on the terminal. Returns the
-    chosen 0-based index, or None on timeout / headless runs.
-
-    Handles both platforms without blocking stdin forever:
-      * Windows: polls ``msvcrt.kbhit`` so we can check Enter mid-wait.
-      * POSIX:   uses ``select`` on stdin for the same effect.
-    Backspace works; Enter commits; non-digit input is ignored."""
-    if not sys.stdin or not sys.stdin.isatty():
-        # Running under systemd / piped output - no TTY to prompt. Caller
-        # should fall back to the default silently.
-        return None
-
-    deadline = time.monotonic() + timeout
-    buf = ""
-
-    def remaining() -> float:
-        return max(0.0, deadline - time.monotonic())
-
-    def redraw() -> None:
-        secs = int(remaining()) + (1 if remaining() % 1 else 0)
-        line = f"  Enter monitor number [{secs:>2}s]: {buf}"
-        # \r + trailing spaces overwrites the previous longer line without
-        # relying on ANSI escape support (Git Bash on Windows treats them
-        # as literal text).
-        sys.stdout.write("\r" + line.ljust(60))
-        sys.stdout.flush()
-
-    try:
-        if os.name == "nt":
-            import msvcrt  # type: ignore
-            redraw()
-            last_sec = -1
-            while remaining() > 0:
-                # Repaint the countdown once per second.
-                cur_sec = int(remaining())
-                if cur_sec != last_sec:
-                    redraw()
-                    last_sec = cur_sec
-                if msvcrt.kbhit():
-                    ch = msvcrt.getwch()
-                    if ch in ("\r", "\n"):
-                        if buf:
-                            sys.stdout.write("\n"); sys.stdout.flush()
-                            try:
-                                v = int(buf) - 1
-                                if v in valid_range:
-                                    return v
-                            except ValueError:
-                                pass
-                            buf = ""
-                            redraw()
-                            continue
-                        # Enter with empty buffer just accepts the default.
-                        sys.stdout.write("\n"); sys.stdout.flush()
-                        return None
-                    elif ch in ("\x08", "\x7f"):
-                        buf = buf[:-1]
-                        redraw()
-                    elif ch == "\x1b":  # Esc
-                        sys.stdout.write("\n"); sys.stdout.flush()
-                        return None
-                    elif ch.isdigit():
-                        buf += ch
-                        redraw()
-                else:
-                    time.sleep(0.05)
-        else:
-            import select
-            redraw()
-            last_sec = -1
-            while remaining() > 0:
-                cur_sec = int(remaining())
-                if cur_sec != last_sec:
-                    redraw()
-                    last_sec = cur_sec
-                r, _, _ = select.select([sys.stdin], [], [], 0.1)
-                if r:
-                    ch = sys.stdin.read(1)
-                    if ch in ("\r", "\n"):
-                        sys.stdout.write("\n"); sys.stdout.flush()
-                        if buf:
-                            try:
-                                v = int(buf) - 1
-                                if v in valid_range:
-                                    return v
-                            except ValueError:
-                                pass
-                        return None
-                    elif ch in ("\x08", "\x7f"):
-                        buf = buf[:-1]
-                        redraw()
-                    elif ch.isdigit():
-                        buf += ch
-                        redraw()
-    finally:
-        sys.stdout.write("\n"); sys.stdout.flush()
-
-    return None
-
-
-def pick_monitor(timeout: float = 5.0) -> Optional[dict]:
-    """Prompt on the terminal for which monitor to use. Auto-picks the primary
-    monitor after ``timeout`` seconds if the user doesn't respond (or if
-    there's no TTY, e.g. running under systemd). Returns a dict with ``x``,
-    ``y``, ``width``, ``height`` for the chosen monitor, or None if screen
-    enumeration isn't available."""
-    try:
-        from screeninfo import get_monitors  # type: ignore
-    except Exception:
-        print("  screeninfo not installed - using default monitor.")
-        return None
-
-    try:
-        monitors = get_monitors()
-    except Exception as e:
-        print(f"  monitor enumeration failed ({e}) - using default.")
-        return None
-
-    if not monitors:
-        return None
-
-    default_idx = next((i for i, m in enumerate(monitors) if getattr(m, "is_primary", False)), 0)
-
-    print("")
-    print("  Available displays:")
-    for i, m in enumerate(monitors):
-        is_default = i == default_idx
-        tag = "  [default]" if is_default else ""
-        primary = "  (primary)" if getattr(m, "is_primary", False) else ""
-        print(f"    {i + 1}. {m.width}x{m.height} @ ({m.x},{m.y}){primary}{tag}")
-    print("")
-
-    picked = _read_digit_with_timeout(range(len(monitors)), timeout)
-    idx = picked if picked is not None else default_idx
-    if picked is None:
-        print(f"  -> auto-selected monitor {idx + 1} (default)")
-    else:
-        print(f"  -> monitor {idx + 1}")
-
-    m = monitors[idx]
-    return {"x": m.x, "y": m.y, "width": m.width, "height": m.height}
+    return subprocess.run(["npm", "run", "build"], cwd=FRONTEND_DIR, env=env).returncode == 0
 
 
 # ── Readiness polling ─────────────────────────────────────────────────────────
@@ -343,9 +520,7 @@ def wait_for(url: str, timeout: int = 120, label: str = "") -> bool:
             urllib.request.urlopen(url, timeout=3)
             return True
         except urllib.error.HTTPError:
-            # Any HTTP response (3xx/4xx/5xx) means the server is up. Next.js
-            # serves a 307 redirect at `/` which urllib's redirect handler can
-            # turn into an HTTPError — that's "ready", not "broken".
+            # Any HTTP response (3xx/4xx/5xx) means the server is up.
             return True
         except Exception as e:
             last_exc = e
@@ -355,101 +530,102 @@ def wait_for(url: str, timeout: int = 120, label: str = "") -> bool:
                 elapsed = int(time.time() - (deadline - timeout))
                 print(f"  still waiting for {label}… ({elapsed}s)")
 
-    print(f"  readiness probe failed: {_readiness_diagnostic(url, last_exc)}")
+    print(f"  readiness probe failed: {_diag(url, last_exc)}")
     return False
 
 
-def _readiness_diagnostic(url: str, last_exc: Optional[BaseException]) -> str:
-    """One-line summary for a failed wait_for: the URL, the last HTTP-probe
-    exception, and a separate raw TCP connect to the same host:port. The TCP
-    line distinguishes 'port not open' from 'HTTP layer rejecting us'."""
+def _diag(url: str, exc: Optional[BaseException]) -> str:
     from urllib.parse import urlparse
     parsed = urlparse(url)
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    exc = f"{type(last_exc).__name__}: {last_exc}" if last_exc else "no exception captured"
+    err = f"{type(exc).__name__}: {exc}" if exc else "no exception"
     try:
         with socket.create_connection((host, port), timeout=3):
             tcp = "TCP open"
     except Exception as e:
         tcp = f"TCP failed ({type(e).__name__}: {e})"
-    return f"url={url} last={exc} tcp={tcp}"
+    return f"url={url} last={err} tcp={tcp}"
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="RunaNet display launcher — starts services and opens a native window"
+        description="RunaNet display launcher (Raspberry Pi 5 / Trixie)"
     )
-    parser.add_argument("--port",         type=int, default=3000,  help="Frontend port (default 3000)")
-    parser.add_argument("--backend-port", type=int, default=8000,  help="Backend port (default 8000)")
-    parser.add_argument("--no-fullscreen", action="store_true",    help="Open in a resizable window instead of fullscreen")
-    parser.add_argument("--width",        type=int, default=1920,  help="Window width when not fullscreen")
-    parser.add_argument("--height",       type=int, default=1080,  help="Window height when not fullscreen")
-    parser.add_argument("--build",        action="store_true",     help="Run npm build before starting")
-    parser.add_argument("--debug",        action="store_true",     help="Enable webview devtools and verbose output")
-    parser.add_argument("--no-presence",  action="store_true",     help="Disable camera-based lock-screen presence detection")
-    parser.add_argument("--presence-grace", type=float, default=20.0, help="Seconds to stay unlocked after a viewer leaves the camera (default 20)")
-    parser.add_argument("--monitor-timeout", type=float, default=5.0, help="Seconds before the monitor picker auto-selects (default 5)")
+    parser.add_argument("--port",         type=int, default=3000, help="Frontend port (default 3000)")
+    parser.add_argument("--backend-port", type=int, default=8000, help="Backend port (default 8000)")
+    parser.add_argument("--no-fullscreen", action="store_true",   help="Open in a resizable window")
+    parser.add_argument("--width",        type=int, default=1920, help="Window width when not fullscreen")
+    parser.add_argument("--height",       type=int, default=1080, help="Window height when not fullscreen")
+    parser.add_argument("--build",        action="store_true",    help="Run npm build before starting")
+    parser.add_argument("--debug",        action="store_true",    help="Enable webview devtools")
+    parser.add_argument("--no-presence",  action="store_true",    help="Disable camera-based lock screen")
+    parser.add_argument("--presence-grace", type=float, default=20.0,
+                        help="Seconds to stay unlocked after a viewer leaves the camera")
+    parser.add_argument("--no-hotspot",   action="store_true",    help="Don't fall back to a Wi-Fi hotspot (Pi only)")
+    parser.add_argument("--video-debug",  action="store_true",    help="Overlay a small playback HUD on each video tile")
     args = parser.parse_args()
 
     procs: list[subprocess.Popen] = []
+    detector = None
 
     def cleanup(*_: object) -> None:
-        print("\nShutting down RunaNet...")
-        # Round 1: ask politely. On POSIX we signal the whole process group
-        # so grandchildren (notably the real `next-server` under `npm`) die
-        # too — otherwise port 3000 stays bound and the next start.py hits
-        # EADDRINUSE.
+        print("\nShutting down RunaNet…")
         for p in procs:
             if p.poll() is not None:
                 continue
             try:
-                if os.name == "nt":
-                    # Frontend runs under a cmd.exe shell (needed to resolve
-                    # npm.cmd), so terminating the shell orphans node.exe.
-                    # taskkill /T walks the whole child tree.
-                    subprocess.run(
-                        ["taskkill", "/F", "/T", "/PID", str(p.pid)],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    )
-                else:
-                    try:
-                        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
-            except Exception:
+                os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
                 try: p.terminate()
                 except Exception: pass
 
-        # Round 2: wait up to 5s for a graceful exit, then SIGKILL anything
-        # still alive. Without escalation, a hung node process can leak the
-        # listening socket past launcher exit.
         deadline = time.time() + 5
         while time.time() < deadline and any(p.poll() is None for p in procs):
             time.sleep(0.1)
         for p in procs:
             if p.poll() is None:
                 try:
-                    if os.name == "nt":
-                        p.kill()
-                    else:
-                        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+                    os.killpg(os.getpgid(p.pid), signal.SIGKILL)
                 except Exception:
                     pass
+        if detector is not None:
+            try: detector.stop()
+            except Exception: pass
         sys.exit(0)
 
     signal.signal(signal.SIGINT,  cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    # ── Optional build step ───────────────────────────────────────────────────
-    if args.build:
-        if not build_frontend():
-            print("ERROR: npm build failed.")
-            sys.exit(1)
+    kind, model = detect_platform()
+    print(f"Platform: {model} → {kind}")
 
-    # ── Start services ────────────────────────────────────────────────────────
+    # ── Network ───────────────────────────────────────────────────────────────
+    # Only Pis fall back to a hotspot. Laptops just run on whatever network
+    # they're already on — turning a dev machine's Wi-Fi into an AP would
+    # kick the developer off their own internet.
+    if kind == "rpi" and not args.no_hotspot:
+        ensure_hotspot()
+
+    # Punch a hole in ufw for the frontend port. Does nothing if ufw isn't
+    # installed/enabled. Run on every host kind because devs hitting the
+    # admin UI from a phone on a laptop hit the same wall as the Pi.
+    ensure_firewall_open(args.port)
+
+    # ── Optional build ────────────────────────────────────────────────────────
+    if args.build and not build_frontend():
+        print("ERROR: npm build failed.")
+        sys.exit(1)
+
+    # ── Services ──────────────────────────────────────────────────────────────
+    # Reclaim ports first so a previous crashed/aborted run can't block the
+    # new one with EADDRINUSE. Only kills leftover RunaNet children — see
+    # _OWN_CMDLINE_MARKERS — never an unrelated listener.
+    reclaim_port(args.backend_port, "backend")
+    reclaim_port(args.port, "frontend")
+
     print("Starting backend…")
     procs.append(start_backend(args.backend_port))
 
@@ -466,17 +642,15 @@ def main() -> None:
         print("ERROR: Frontend did not become ready in time.")
         cleanup()
 
-    # ── Monitor selection (multi-display only) ────────────────────────────────
-    # Always runs when multiple monitors are present, even in windowed mode -
-    # the dialog is how we let you choose WHICH screen the window opens on.
-    # On single-monitor systems pick_monitor returns None without a dialog.
-    monitor = pick_monitor(timeout=args.monitor_timeout)
-    if monitor:
-        print(f"  using monitor at ({monitor['x']},{monitor['y']}) "
-              f"{monitor['width']}x{monitor['height']}")
+    ip = lan_ip()
+    print("")
+    print("RunaNet is up:")
+    print(f"  Display: http://{ip}:{args.port}/display")
+    print(f"  Admin:   http://{ip}:{args.port}/admin")
+    print(f"  API:     http://{ip}:{args.backend_port}")
+    print("")
 
-    # ── Presence detector (lock-screen driver) ────────────────────────────────
-    detector = None
+    # ── Presence detector ─────────────────────────────────────────────────────
     if not args.no_presence:
         try:
             from presence_detector import PresenceDetector
@@ -488,85 +662,58 @@ def main() -> None:
         except Exception as e:
             print(f"  presence detector not started: {e}")
 
-    # Extend cleanup to stop the detector
-    _orig_cleanup = cleanup
-    def cleanup_all(*a: object) -> None:  # type: ignore[misc]
-        if detector is not None:
-            try: detector.stop()
-            except Exception: pass
-        _orig_cleanup(*a)
+    # ── Display window ────────────────────────────────────────────────────────
+    want_fullscreen = not args.no_fullscreen
+    display_url = f"http://127.0.0.1:{args.port}/display"
+    if args.video_debug:
+        display_url += "?vdebug"
 
-    signal.signal(signal.SIGINT,  cleanup_all)
-    signal.signal(signal.SIGTERM, cleanup_all)
-    cleanup = cleanup_all  # noqa: F811
+    chromium = find_chromium()
+    if chromium:
+        print(f"Opening Chromium kiosk ({os.path.basename(chromium)})…")
+        browser_proc = launch_chromium_kiosk(
+            chromium, display_url,
+            fullscreen=want_fullscreen,
+            width=args.width, height=args.height,
+        )
+        procs.append(browser_proc)
+        # Supervise: when the browser window closes (or backend/frontend
+        # die), tear everything down.
+        try:
+            while browser_proc.poll() is None:
+                time.sleep(0.5)
+                if any(p.poll() is not None for p in procs[:2]):
+                    print("backend or frontend exited — shutting down.")
+                    break
+        except KeyboardInterrupt:
+            pass
+        cleanup()
+        return
 
-    # ── Open native window ────────────────────────────────────────────────────
-    print("Opening display window...")
+    # ── Fallback: pywebview/WebKit2GTK ────────────────────────────────────────
+    print("No Chromium found — falling back to pywebview.")
     try:
         import webview  # type: ignore
     except ImportError:
-        print("pywebview not available - falling back to system browser in app mode.")
-        browser_proc = open_system_browser_app(
-            url=f"http://127.0.0.1:{args.port}/display",
-            fullscreen=not args.no_fullscreen,
-            monitor=monitor,
-        )
-        if browser_proc is None:
-            print("  no Edge/Chrome found. Open this URL in any browser instead:")
-            print(f"    http://127.0.0.1:{args.port}/display")
-
-        # Stay alive and supervise the backend/frontend. On Windows,
-        # `msedge.exe --app=...` exits immediately after handing the URL to an
-        # existing Edge process - so browser_proc.poll() is not a reliable
-        # signal that the user closed the window. We just run until Ctrl+C on
-        # Windows. On Linux/macOS the browser we launched IS the window.
-        print("Services are running. Press Ctrl+C to stop (or close the window on Linux/macOS).")
-        watch_browser = browser_proc is not None and os.name != "nt"
-        crash_history: list[list[float]] = [[], []]  # recent start timestamps per proc
-        try:
-            while True:
-                time.sleep(2)
-                if watch_browser and browser_proc.poll() is not None:  # type: ignore[union-attr]
-                    print("Browser window closed.")
-                    break
-                for i, p in enumerate(procs):
-                    if p.poll() is None:
-                        continue
-                    now = time.time()
-                    crash_history[i] = [t for t in crash_history[i] if now - t < 30] + [now]
-                    if len(crash_history[i]) >= 3:
-                        label = "backend" if i == 0 else "frontend"
-                        print(f"{label} crashed 3x in 30s - giving up. Check the logs above.")
-                        cleanup_all()
-                        return
-                    print(f"Service {i} crashed (exit {p.returncode}), restarting...")
-                    procs[i] = start_backend(args.backend_port) if i == 0 else start_frontend(args.port, args.backend_port)
-        except KeyboardInterrupt:
-            pass
-        cleanup_all()
+        print("ERROR: pywebview not installed. Run start.sh to bootstrap.")
+        cleanup()
         return
 
-    want_fullscreen = not args.no_fullscreen
+    try:
+        import gi  # type: ignore  # noqa: F401
+    except ImportError:
+        _print_gtk_install_hint()
+        cleanup()
+        return
 
-    if monitor:
-        # Place the window on the chosen monitor first; we'll flip to fullscreen
-        # after load so the native fullscreen lands on the right screen.
-        win_x, win_y = monitor["x"], monitor["y"]
-        win_w, win_h = monitor["width"], monitor["height"]
-        initial_fullscreen = False
-    else:
-        win_x = win_y = None
-        win_w, win_h = args.width, args.height
-        initial_fullscreen = want_fullscreen
+    _enable_webkit_autoplay()
 
     window = webview.create_window(
         title="RunaNet",
-        url=f"http://127.0.0.1:{args.port}/display",
-        x=win_x,
-        y=win_y,
-        width=win_w,
-        height=win_h,
-        fullscreen=initial_fullscreen,
+        url=display_url,
+        width=args.width,
+        height=args.height,
+        fullscreen=want_fullscreen,
         frameless=want_fullscreen,
         easy_drag=False,
         text_select=False,
@@ -575,25 +722,28 @@ def main() -> None:
         background_color="#000000",
     )
 
-    # Shut down services when the window is closed
     window.events.closed += cleanup
 
-    # Optional: inject a context menu blocker so right-click is disabled
     def on_loaded() -> None:
+        # Disable right-click in the kiosk view.
         window.evaluate_js(
             "document.addEventListener('contextmenu', e => e.preventDefault());"
         )
-        # If we placed the window on a specific monitor, go fullscreen now —
-        # the native toggle fullscreens on whichever monitor holds the window.
-        if monitor and want_fullscreen:
-            try:
-                window.toggle_fullscreen()
-            except Exception as e:
-                print(f"  fullscreen toggle failed: {e}")
 
     window.events.loaded += on_loaded
 
-    webview.start(debug=args.debug)
+    # private_mode=False + a persistent storage_path keeps localStorage,
+    # cookies, and IndexedDB across restarts. pywebview defaults to private
+    # mode, where WebKit refuses localStorage and the Next.js admin UI
+    # crashes with "Can't find variable: localStorage".
+    storage_path = ROOT / "data" / "webview-storage"
+    storage_path.mkdir(parents=True, exist_ok=True)
+    webview.start(
+        gui="gtk",
+        debug=args.debug,
+        private_mode=False,
+        storage_path=str(storage_path),
+    )
     cleanup()
 
 

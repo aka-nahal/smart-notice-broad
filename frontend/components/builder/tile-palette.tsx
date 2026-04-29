@@ -24,10 +24,13 @@ const TILE_CATEGORIES = [
   {
     label: "Widgets",
     tiles: [
-      { value: "clock",     label: "Clock",     icon: "🕐", desc: "Live time and date display",        defaultW: 2, defaultH: 2 },
-      { value: "weather",   label: "Weather",   icon: "🌤️", desc: "Live weather from OpenWeather",     defaultW: 3, defaultH: 2 },
-      { value: "sensor",    label: "Sensor",    icon: "📡", desc: "RPi GPIO sensor readings",           defaultW: 2, defaultH: 2 },
-      { value: "timetable", label: "Timetable", icon: "📅", desc: "Today's class schedule tracker",    defaultW: 3, defaultH: 4 },
+      { value: "clock",          label: "Clock",          icon: "🕐", desc: "Live time and date display",        defaultW: 2, defaultH: 2 },
+      { value: "weather",        label: "Weather",        icon: "🌤️", desc: "Live weather from OpenWeather",     defaultW: 3, defaultH: 2 },
+      { value: "sensor",         label: "Sensor",         icon: "📡", desc: "RPi GPIO sensor readings",           defaultW: 2, defaultH: 2 },
+      { value: "timetable",      label: "Timetable",      icon: "📅", desc: "Today's class schedule tracker",    defaultW: 3, defaultH: 4 },
+      { value: "teacher_status", label: "Teacher Status", icon: "👤", desc: "Current class or fallback to cabin", defaultW: 3, defaultH: 2 },
+      { value: "teachers_list",  label: "Teachers List",  icon: "👥", desc: "All teachers · auto-scrolls when full", defaultW: 3, defaultH: 5 },
+      { value: "stack",          label: "Stack",          icon: "🗂️", desc: "Cycle multiple widgets in one slot",  defaultW: 3, defaultH: 3 },
     ],
   },
 ] as const
