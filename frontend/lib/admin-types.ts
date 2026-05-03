@@ -22,8 +22,6 @@ export interface TileRead {
   grid_h: number
   z_index: number
   priority_weight: number
-  refresh_interval_sec: number | null
-  animation_style: string | null
   config_json: string | null
   is_emergency_slot: boolean
   notice_id: number | null

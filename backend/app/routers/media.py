@@ -135,6 +135,37 @@ async def list_media(db: AsyncSession = Depends(get_db)):
     ]
 
 
+@router.get("/_/stats")
+async def media_stats(db: AsyncSession = Depends(get_db)) -> dict:
+    """Aggregate storage usage. Path uses `_/stats` so it doesn't collide with
+    the `/{media_id}` int route."""
+    result = await db.execute(select(MediaAsset))
+    assets = result.scalars().all()
+    by_kind: dict[str, dict[str, int]] = {}
+    total_bytes = 0
+    total_count = 0
+    for a in assets:
+        size = a.bytes_size or 0
+        kind = a.kind or "other"
+        bucket = by_kind.setdefault(kind, {"count": 0, "bytes": 0})
+        bucket["count"] += 1
+        bucket["bytes"] += size
+        total_bytes += size
+        total_count += 1
+
+    # Soft quota — the disk is the real limit; this is purely advisory for the
+    # progress bar in the admin UI. 5 GiB is comfortable on a Pi 5 with a
+    # modest microSD; bump if you have more storage.
+    quota_bytes = 5 * 1024 * 1024 * 1024
+
+    return {
+        "total_bytes": total_bytes,
+        "total_count": total_count,
+        "quota_bytes": quota_bytes,
+        "by_kind": by_kind,
+    }
+
+
 _RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
 # 256 KiB chunks: large enough to keep syscalls cheap, small enough to start
 # streaming bytes to the browser within a single TCP roundtrip.

@@ -49,8 +49,6 @@ export interface TileRead {
   grid_h: number
   z_index: number
   priority_weight: number
-  refresh_interval_sec: number | null
-  animation_style: string | null
   config_json: string | null
   is_emergency_slot: boolean
   notice_id: number | null
@@ -137,30 +135,59 @@ export interface LayoutUpdate {
 // ---- Display ----
 
 export interface TileConfig {
+  // Display (apply to every tile)
+  /** Per-tile theme override. "auto" inherits the app theme. */
+  theme?: "light" | "dark" | "auto"
+  /** Scale factor for everything inside the tile (text, icons, padding). 1.0 default. */
+  zoom?: number
+
+  // Typography (global fallbacks)
   fontFamily?: string
   titleSize?: number
   bodySize?: number
   bgColor?: string
   textColor?: string
+
+  // Notice / emergency (per-type sizes — independent of global)
+  noticeTitleSize?: number
+  noticeBodySize?: number
+
+  // Ticker
   tickerText?: string
+  tickerTextSize?: number
+  /** Marquee duration in seconds — lower = faster. */
+  tickerSpeed?: number
+
+  // Banner
   bannerTitle?: string
   bannerSubtitle?: string
   /** Banner title font size (px). If omitted, auto-sizes to the tile. */
   bannerTitleSize?: number
   /** Banner subtitle font size (px). If omitted, auto-sizes to the tile. */
   bannerSubtitleSize?: number
+
+  // Image
   imageUrl?: string
   imageAlt?: string
+
+  // Video
   videoUrl?: string
   videoPoster?: string
-  videoAutoplay?: boolean | string
-  videoLoop?: boolean | string
-  videoControls?: boolean | string
-  clockTimezone?: string
+
+  // Clock — fully wired now
+  clockStyle?: "digital" | "analog" | "minimal" | "flip" | "word"
   clockFormat?: "12h" | "24h"
+  clockShowSeconds?: boolean | string
+  clockShowDate?: boolean | string
+  clockTimezone?: string
+  clockDateFormat?: "short" | "long" | "iso"
+
+  // Weather
   weatherCity?: string
   weatherUnits?: "metric" | "imperial"
   weatherShowForecast?: boolean | string
+  weatherTempSize?: number
+  weatherCitySize?: number
   // Carousel
   carouselSlides?: string // JSON array of slides: [{ type, url, caption? }]
   carouselInterval?: number // seconds between slides
@@ -182,9 +209,8 @@ export interface TileConfig {
   pdfAutoAdvanceSec?: number
   pdfShowChrome?: boolean | string
   pdfFit?: "page" | "width" | "height" | string
-  // Sensor
-  sensorType?: string
-  sensorRefreshSec?: number
+  /** Loop direction once the last page is reached. */
+  pdfLoop?: "forward" | "pingpong" | string
   // Timetable
   timetableId?: number | string
   timetableShowTeacher?: boolean | string

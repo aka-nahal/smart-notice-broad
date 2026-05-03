@@ -88,7 +88,6 @@ export function TilePreview({ tile, notice, isSelected, isLocked, singleSelect, 
           <span className={`text-[8px] font-bold uppercase tracking-wider bg-black/40 px-1 rounded ${ytId ? "text-red-400" : "text-pink-400/70"}`}>
             {ytId ? "youtube" : "video"}
           </span>
-          {cfg.videoLoop === "false" && <span className="text-[8px] text-white/40 bg-black/30 px-1 rounded">no loop</span>}
         </div>
       </div>
     )
@@ -120,15 +119,18 @@ export function TilePreview({ tile, notice, isSelected, isLocked, singleSelect, 
   }
 
   if (type === "clock") {
+    const showSeconds = cfg.clockShowSeconds !== "false" && cfg.clockShowSeconds !== false
     const fmt = cfg.clockFormat === "12h"
-      ? time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-      : time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
-    const dateStr = time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+      ? time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: showSeconds ? "2-digit" : undefined, hour12: true })
+      : time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: showSeconds ? "2-digit" : undefined, hour12: false })
+    const showDate = cfg.clockShowDate !== "false" && cfg.clockShowDate !== false
+    const dateStr = showDate ? time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""
+    const styleLabel = (cfg.clockStyle as string) || "digital"
     return (
       <div className="flex h-full flex-col items-center justify-center gap-0.5 rounded-md" style={customBg}>
-        <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-violet-400/50">clock</span>
+        <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-violet-400/50">{styleLabel}</span>
         <span className="text-lg font-bold tabular-nums tracking-tight" style={customText ?? { color: "rgb(167 139 250 / 0.8)" }}>{fmt}</span>
-        <span className="text-[9px]" style={customText ? { color: cfg.textColor, opacity: 0.5 } : { color: "rgb(139 92 246 / 0.4)" }}>{dateStr}</span>
+        {dateStr && <span className="text-[9px]" style={customText ? { color: cfg.textColor as string, opacity: 0.5 } : { color: "rgb(139 92 246 / 0.4)" }}>{dateStr}</span>}
       </div>
     )
   }

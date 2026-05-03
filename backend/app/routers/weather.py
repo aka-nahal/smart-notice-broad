@@ -16,17 +16,22 @@ Setup
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.database import get_db
+from app.models.app_setting import AppSetting
 
 router = APIRouter()
 
 OPENWEATHER_BASE = "https://api.openweathermap.org/data/2.5"
+OPENWEATHER_GEO_BASE = "https://api.openweathermap.org/geo/1.0"
 REQUEST_TIMEOUT = 8.0
 
 # Small in-process TTL cache. The widget refreshes every 10 min per tile, but
@@ -51,17 +56,34 @@ def _cache_set(key: tuple[str, str, str], value: dict) -> None:
     _CACHE[key] = (time.monotonic() + _CACHE_TTL, value)
 
 
-def _require_api_key() -> str:
-    key = settings.openweather_api_key
+async def _read_db_setting(db: AsyncSession, key: str) -> str | None:
+    s = await db.get(AppSetting, key)
+    if not s or not s.value:
+        return None
+    try:
+        v = json.loads(s.value)
+    except json.JSONDecodeError:
+        return s.value
+    return v if isinstance(v, str) else None
+
+
+async def _resolve_api_key(db: AsyncSession) -> str:
+    """Prefer the admin-set key in AppSetting, fall back to OPENWEATHER_API_KEY env."""
+    db_key = await _read_db_setting(db, "weather_api_key")
+    key = db_key or settings.openweather_api_key
     if not key:
         raise HTTPException(
             status_code=503,
             detail=(
-                "OpenWeather API key not configured. Add OPENWEATHER_API_KEY "
-                "to backend/.env and restart the backend."
+                "OpenWeather API key not configured. Set it in Settings → "
+                "OpenWeather, or add OPENWEATHER_API_KEY to backend/.env."
             ),
         )
     return key
+
+
+async def _resolve_default_city(db: AsyncSession) -> str:
+    return (await _read_db_setting(db, "weather_default_city")) or "London"
 
 
 def _upstream_message(resp: httpx.Response) -> str:
@@ -153,32 +175,90 @@ def _shape_forecast(data: dict, fallback_city: str) -> dict:
 
 @router.get("/current")
 async def get_current_weather(
-    city: str = Query(default="London", min_length=1),
+    city: str | None = Query(default=None),
     units: str = Query(default="metric", pattern="^(metric|imperial|standard)$"),
+    db: AsyncSession = Depends(get_db),
 ):
-    api_key = _require_api_key()
-    cache_key = ("current", city.lower(), units)
+    api_key = await _resolve_api_key(db)
+    resolved_city = city or await _resolve_default_city(db)
+    cache_key = ("current", resolved_city.lower(), units)
     if (hit := _cache_get(cache_key)) is not None:
         return hit
-    data = await _call_openweather("/weather", {"q": city, "units": units, "appid": api_key})
-    shaped = _shape_current(data, city)
+    data = await _call_openweather("/weather", {"q": resolved_city, "units": units, "appid": api_key})
+    shaped = _shape_current(data, resolved_city)
     _cache_set(cache_key, shaped)
     return shaped
 
 
 @router.get("/forecast")
 async def get_forecast(
-    city: str = Query(default="London", min_length=1),
+    city: str | None = Query(default=None),
     units: str = Query(default="metric", pattern="^(metric|imperial|standard)$"),
+    db: AsyncSession = Depends(get_db),
 ):
-    api_key = _require_api_key()
-    cache_key = ("forecast", city.lower(), units)
+    api_key = await _resolve_api_key(db)
+    resolved_city = city or await _resolve_default_city(db)
+    cache_key = ("forecast", resolved_city.lower(), units)
     if (hit := _cache_get(cache_key)) is not None:
         return hit
     data = await _call_openweather(
         "/forecast",
-        {"q": city, "units": units, "appid": api_key, "cnt": 8},
+        {"q": resolved_city, "units": units, "appid": api_key, "cnt": 8},
     )
-    shaped = _shape_forecast(data, city)
+    shaped = _shape_forecast(data, resolved_city)
     _cache_set(cache_key, shaped)
     return shaped
+
+
+@router.get("/test")
+async def test_api_key(db: AsyncSession = Depends(get_db)) -> dict:
+    """Validate the saved API key + default city against OpenWeather. Returns
+    {ok: bool, city, country, temp, units, message?} so the Settings UI can
+    show a one-click confirmation that the key works without showing the
+    raw key in the browser."""
+    api_key = await _resolve_api_key(db)
+    city = await _resolve_default_city(db)
+    try:
+        data = await _call_openweather("/weather", {"q": city, "units": "metric", "appid": api_key})
+    except HTTPException as e:
+        return {"ok": False, "message": e.detail, "city": city}
+    shaped = _shape_current(data, city)
+    return {
+        "ok": True,
+        "city": shaped["city"],
+        "country": shaped["country"],
+        "temp": shaped["temp"],
+        "description": shaped["description"],
+    }
+
+
+@router.get("/reverse")
+async def reverse_geocode(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Look up a human-readable city name for a lat/lon pair. Used by the
+    Settings page when the admin clicks "Use my location"."""
+    api_key = await _resolve_api_key(db)
+    try:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+            resp = await client.get(
+                f"{OPENWEATHER_GEO_BASE}/reverse",
+                params={"lat": lat, "lon": lon, "limit": 1, "appid": api_key},
+            )
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Geocoding failed: {e}")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=_upstream_message(resp))
+    arr = resp.json()
+    if not arr:
+        raise HTTPException(status_code=404, detail="No location found for those coordinates")
+    place = arr[0]
+    return {
+        "city": place.get("name", ""),
+        "country": place.get("country", ""),
+        "state": place.get("state", ""),
+        "lat": place.get("lat", lat),
+        "lon": place.get("lon", lon),
+    }

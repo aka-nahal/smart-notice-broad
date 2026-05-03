@@ -54,20 +54,20 @@ function StepField({ label, value, min, max, onChange }: {
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-zinc-400 w-14">{label}</span>
-      <div className="flex items-center rounded-md border border-zinc-700 overflow-hidden">
+      <span className="text-xs text-zinc-600 dark:text-zinc-400 w-14">{label}</span>
+      <div className="flex items-center rounded-md border border-zinc-300 dark:border-zinc-700 overflow-hidden">
         <button onClick={() => value > min && onChange(value - 1)} disabled={value <= min}
-          className="px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 border-r border-zinc-700">&minus;</button>
+          className="px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30 border-r border-zinc-300 dark:border-zinc-700">&minus;</button>
         <input
           type="number" value={value} min={min} max={max}
           onChange={(e) => {
             const n = parseInt(e.target.value, 10)
             if (!isNaN(n)) onChange(Math.max(min, Math.min(max, n)))
           }}
-          className="w-12 bg-transparent px-1 py-1 text-center text-xs tabular-nums text-zinc-200 outline-none"
+          className="w-12 bg-transparent px-1 py-1 text-center text-xs tabular-nums text-zinc-800 dark:text-zinc-200 outline-none"
         />
         <button onClick={() => value < max && onChange(value + 1)} disabled={value >= max}
-          className="px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700 disabled:opacity-30 border-l border-zinc-700">+</button>
+          className="px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30 border-l border-zinc-300 dark:border-zinc-700">+</button>
       </div>
     </div>
   )
@@ -111,14 +111,14 @@ export function GridSettingsPanel({ spec, tileCount, onUpdate, onAutoFit }: Prop
   }
 
   return (
-    <div className="border-b border-zinc-800 bg-zinc-900/50">
+    <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50">
       {/* Manual controls */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5">
         <StepField label="Columns" value={spec.cols} min={1} max={24} onChange={(v) => onUpdate({ grid_cols: v })} />
         <StepField label="Rows" value={spec.rows} min={1} max={24} onChange={(v) => onUpdate({ grid_rows: v })} />
         <StepField label="Gap (px)" value={spec.gapPx} min={0} max={32} onChange={(v) => onUpdate({ gap_px: v })} />
 
-        <div className="h-5 w-px bg-zinc-800" />
+        <div className="h-5 w-px bg-zinc-100 dark:bg-zinc-800" />
 
         <button
           onClick={syncFromDisplay}
@@ -128,12 +128,12 @@ export function GridSettingsPanel({ spec, tileCount, onUpdate, onAutoFit }: Prop
               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
               : syncState === "none"
               ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
-              : "border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+              : "border-zinc-300 dark:border-zinc-700 bg-zinc-100/50 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400 hover:border-zinc-500 dark:hover:border-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
           } disabled:opacity-50`}
           title="Auto-detect from the display device's reported resolution"
         >
           {syncState === "loading" ? (
-            <span className="animate-spin inline-block h-2.5 w-2.5 rounded-full border border-zinc-600 border-t-zinc-300" />
+            <span className="animate-spin inline-block h-2.5 w-2.5 rounded-full border border-zinc-400 dark:border-zinc-600 border-t-zinc-300" />
           ) : (
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-2" />
@@ -144,7 +144,7 @@ export function GridSettingsPanel({ spec, tileCount, onUpdate, onAutoFit }: Prop
 
         <button
           onClick={syncFromBrowser}
-          className="rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-zinc-100/50 dark:bg-zinc-800/50 px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:border-zinc-500 dark:hover:border-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
           title="Use this browser window's screen size"
         >
           Auto from Browser
@@ -171,7 +171,7 @@ export function GridSettingsPanel({ spec, tileCount, onUpdate, onAutoFit }: Prop
       </div>
 
       {/* Resolution presets */}
-      <div className="flex items-center gap-1 border-t border-zinc-800/50 px-4 py-2 overflow-x-auto">
+      <div className="flex items-center gap-1 border-t border-zinc-200/50 dark:border-zinc-800/50 px-4 py-2 overflow-x-auto">
         <span className="mr-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 shrink-0">Presets</span>
         {RESOLUTION_PRESETS.map((preset) => {
           const isActive = spec.cols === preset.cols && spec.rows === preset.rows
@@ -182,7 +182,7 @@ export function GridSettingsPanel({ spec, tileCount, onUpdate, onAutoFit }: Prop
               className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] transition-colors ${
                 isActive
                   ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
-                  : "text-zinc-400 hover:bg-zinc-800 border border-transparent hover:border-zinc-700"
+                  : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700"
               }`}
             >
               <span className="mr-1">{preset.icon}</span>

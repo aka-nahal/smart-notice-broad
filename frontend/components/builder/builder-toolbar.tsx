@@ -11,7 +11,7 @@ function ToolbarBtn({ children, onClick, disabled, active, title, danger }: {
       className={`rounded-md px-2 py-1 text-xs transition-colors disabled:opacity-30 ${
         active ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
         : danger ? "text-red-400 hover:bg-red-900/20 border border-transparent"
-        : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 border border-transparent hover:border-zinc-700"
+        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700"
       }`}>
       {children}
     </button>
@@ -19,7 +19,7 @@ function ToolbarBtn({ children, onClick, disabled, active, title, danger }: {
 }
 
 function ToolbarSep() {
-  return <div className="h-5 w-px bg-zinc-800 mx-0.5" />
+  return <div className="h-5 w-px bg-zinc-100 dark:bg-zinc-800 mx-0.5" />
 }
 
 interface Props {
@@ -54,10 +54,10 @@ export function BuilderToolbar({
   onCloneVersion, onPublish,
 }: Props) {
   return (
-    <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-sm px-3 py-1.5">
+    <header className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm px-3 py-1.5">
       {/* Left side */}
       <div className="flex items-center gap-2">
-        <a href="/admin" className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors" title="Back to Admin">
+        <a href="/admin" className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors" title="Back to Admin">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
@@ -70,21 +70,21 @@ export function BuilderToolbar({
           <select
             value={activeLayout.id}
             onChange={(e) => onSwitchLayout(Number(e.target.value))}
-            className="rounded-md bg-zinc-800 px-2 py-1 text-sm font-semibold text-zinc-200 outline-none border border-zinc-700 hover:border-zinc-600"
+            className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1 text-sm font-semibold text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600"
           >
             {layouts.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
           </select>
         ) : (
-          <span className="text-sm font-semibold text-zinc-200">{activeLayout.name}</span>
+          <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{activeLayout.name}</span>
         )}
 
         {/* Version selector */}
         <select
           value={version.id}
           onChange={(e) => onSwitchVersion(Number(e.target.value))}
-          className="rounded-md bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400 outline-none border border-zinc-700 hover:border-zinc-600"
+          className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-400 outline-none border border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600"
         >
           {activeLayout.versions.map((v) => (
             <option key={v.id} value={v.id}>
@@ -144,13 +144,13 @@ export function BuilderToolbar({
           + Version
         </ToolbarBtn>
 
-        <a href="/" target="_blank" className="rounded-md border border-transparent px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-zinc-700 transition-colors">
+        <a href="/" target="_blank" className="rounded-md border border-transparent px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
           Preview &nearr;
         </a>
 
         {/* Publish */}
         <button onClick={onPublish} disabled={saving}
-          className={`rounded-lg px-4 py-1.5 text-xs font-medium text-white transition-all disabled:opacity-50 ${
+          className={`rounded-lg px-4 py-1.5 text-xs font-medium text-zinc-900 dark:text-white transition-all disabled:opacity-50 ${
             version.is_published
               ? "bg-emerald-700 hover:bg-emerald-600"
               : "bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20"

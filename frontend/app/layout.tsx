@@ -7,8 +7,10 @@ const sans = DM_Sans({ subsets: ["latin"], variable: "--font-geist-sans" })
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 
 export const metadata: Metadata = {
-  title: "Smart Notice Board",
-  description: "AI-powered digital notice display"
+  title: "RunaNet — by FutureForge Studios",
+  description: "RunaNet — AI-powered campus display, by FutureForge Studios Pvt. Ltd.",
+  applicationName: "RunaNet",
+  authors: [{ name: "FutureForge Studios Pvt. Ltd." }],
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

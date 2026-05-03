@@ -1,6 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+
+export type PdfFit = "page" | "width" | "height"
+export type PdfLoop = "forward" | "pingpong"
 
 interface Props {
   url: string
@@ -8,20 +11,21 @@ interface Props {
   autoAdvanceSec?: number
   /** Initial page (1-based). */
   page?: number
-  /** Total pages — if known the viewer shows N/total and can wrap. If unknown the
-   *  viewer just relies on the browser's PDF chrome and disables auto-advance. */
+  /** Total pages — required for wrap and ping-pong. If unknown, auto-advance is off. */
   totalPages?: number
   /** Show overlay chrome (page counter + arrows). */
   showChrome?: boolean
   /** Fit mode passed to the PDF object viewer. */
-  fit?: "page" | "width" | "height"
+  fit?: PdfFit
+  /** "forward" loops 1→N→1; "pingpong" goes 1→N→1 (back-and-forth). */
+  loop?: PdfLoop
 }
 
 /**
- * Lightweight PDF viewer that uses the browser's built-in PDF renderer via
- * `<object>` (works in all major browsers without bundling pdf.js). Supports
- * auto page advancement using PDF open params (#page=N) and a small chrome
- * overlay. Falls back to a download link if PDF rendering is unsupported.
+ * PDF viewer using the browser's built-in PDF renderer via `<object>`.
+ * Auto-advances pages with a soft cross-fade and supports two loop modes:
+ *   - forward: 1 → 2 → 3 → … → N → 1 → 2 …  (default)
+ *   - pingpong: 1 → 2 → 3 → … → N → N-1 → … → 1 → 2 …
  */
 export function PdfViewer({
   url,
@@ -30,30 +34,41 @@ export function PdfViewer({
   totalPages,
   showChrome = true,
   fit = "page",
+  loop = "forward",
 }: Props) {
   const [current, setCurrent] = useState(Math.max(1, page))
+  const [fading, setFading] = useState(false)
+  // For pingpong we need to remember the direction across renders.
+  const dirRef = useRef<1 | -1>(1)
 
   // Auto-advance pages only if total is known.
   useEffect(() => {
     if (!autoAdvanceSec || autoAdvanceSec <= 0) return
     if (!totalPages || totalPages <= 1) return
     const id = setInterval(() => {
-      setCurrent((p) => (p % totalPages) + 1)
+      // Brief fade-out, swap page, fade back in. The <object> reload is
+      // instantaneous in modern Chrome/Edge; the fade hides any flicker.
+      setFading(true)
+      setTimeout(() => {
+        setCurrent((p) => nextPage(p, totalPages, loop, dirRef))
+        // give the new src a tick to mount, then fade in
+        requestAnimationFrame(() => setFading(false))
+      }, 220)
     }, autoAdvanceSec * 1000)
     return () => clearInterval(id)
-  }, [autoAdvanceSec, totalPages])
+  }, [autoAdvanceSec, totalPages, loop])
 
-  // PDF open parameters: page=N, view=Fit / FitH / FitV. Toolbar/navpanes off.
   const view = fit === "width" ? "FitH" : fit === "height" ? "FitV" : "Fit"
   const src = `${url}#page=${current}&view=${view}&toolbar=0&navpanes=0&statusbar=0`
 
-  function next() {
-    if (totalPages) setCurrent((p) => (p % totalPages) + 1)
-    else setCurrent((p) => p + 1)
-  }
-  function prev() {
-    if (totalPages) setCurrent((p) => ((p - 2 + totalPages) % totalPages) + 1)
-    else setCurrent((p) => Math.max(1, p - 1))
+  function step(delta: 1 | -1) {
+    dirRef.current = delta
+    setCurrent((p) => {
+      if (!totalPages) return Math.max(1, p + delta)
+      // Manual nav uses simple wrap regardless of loop mode.
+      const n = ((p - 1 + delta + totalPages) % totalPages) + 1
+      return n
+    })
   }
 
   return (
@@ -62,7 +77,7 @@ export function PdfViewer({
         key={src}
         data={src}
         type="application/pdf"
-        className="h-full w-full"
+        className={`h-full w-full transition-opacity duration-200 ease-out ${fading ? "opacity-0" : "opacity-100"}`}
       >
         {/* Fallback for browsers that won't embed PDFs */}
         <div className="flex h-full flex-col items-center justify-center gap-2 text-center p-4">
@@ -77,11 +92,21 @@ export function PdfViewer({
 
       {showChrome && (
         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white/80 backdrop-blur-sm pointer-events-auto">
-          <button onClick={prev} className="rounded-full px-1 hover:bg-white/10" title="Previous page">‹</button>
+          <button onClick={() => step(-1)} className="rounded-full px-1 hover:bg-white/10" title="Previous page">‹</button>
           <span className="tabular-nums">{current}{totalPages ? ` / ${totalPages}` : ""}</span>
-          <button onClick={next} className="rounded-full px-1 hover:bg-white/10" title="Next page">›</button>
+          <button onClick={() => step(1)} className="rounded-full px-1 hover:bg-white/10" title="Next page">›</button>
         </div>
       )}
     </div>
   )
+}
+
+function nextPage(p: number, total: number, loop: PdfLoop, dirRef: React.MutableRefObject<1 | -1>): number {
+  if (loop === "pingpong") {
+    if (dirRef.current === 1 && p >= total) dirRef.current = -1
+    else if (dirRef.current === -1 && p <= 1) dirRef.current = 1
+    return Math.max(1, Math.min(total, p + dirRef.current))
+  }
+  // forward (default) — wrap at the end
+  return (p % total) + 1
 }

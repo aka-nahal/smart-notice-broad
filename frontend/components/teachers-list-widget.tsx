@@ -115,8 +115,22 @@ export function TeachersListWidget({
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.05] shrink-0">
+          <span className="text-sm">👥</span>
+          <span className="text-xs font-semibold text-zinc-200 truncate">{title}</span>
+        </div>
+        <div className="flex flex-col gap-1.5 px-3 py-2 animate-pulse">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-2">
+              {showAvatar && <div className="h-7 w-7 rounded-full bg-zinc-300/40 dark:bg-zinc-700/40" />}
+              <div className="flex-1 space-y-1">
+                <div className="h-2.5 w-3/5 rounded bg-zinc-300/50 dark:bg-zinc-700/50" />
+                <div className="h-2 w-2/5 rounded bg-zinc-300/30 dark:bg-zinc-700/30" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

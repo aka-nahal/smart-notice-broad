@@ -8,12 +8,13 @@ import { WeatherWidget } from "@/components/weather-widget"
 import { CarouselDisplay, parseSlides } from "@/components/carousel-widget"
 import { StackDisplay, parseStackChildren, type StackChild } from "@/components/stack-widget"
 import { MediaImage } from "@/components/media-image"
-import { SensorWidget } from "@/components/sensor-widget"
 import { TimetableWidget } from "@/components/timetable-widget"
 import { TeacherStatusWidget } from "@/components/teacher-status-widget"
 import { TeachersListWidget } from "@/components/teachers-list-widget"
 import { VideoPlayer } from "@/components/video-player"
 import { PdfViewer } from "@/components/pdf-viewer"
+import { BrandedLoader } from "@/components/skeleton"
+import { ScreenSaver, loadScreenSaverConfig, type ScreenSaverConfig } from "@/components/screen-saver"
 
 const DEFAULT_REFRESH_MS = 30_000
 
@@ -93,14 +94,25 @@ function WidgetContent({
   if (type === "clock")
     return (
       <div className="flex h-full flex-col items-center justify-center">
-        <ClockWidget />
+        <ClockWidget
+          style={(config.clockStyle as "digital" | "analog" | "minimal" | "flip" | "word" | undefined) ?? "digital"}
+          format={(config.clockFormat as "12h" | "24h" | undefined) ?? "24h"}
+          showSeconds={config.clockShowSeconds !== "false" && config.clockShowSeconds !== false}
+          showDate={config.clockShowDate !== "false" && config.clockShowDate !== false}
+          timezone={(config.clockTimezone as string | undefined) || undefined}
+          dateFormat={(config.clockDateFormat as "short" | "long" | "iso" | undefined) ?? "long"}
+        />
       </div>
     )
   if (type === "ticker") {
     const text = config.tickerText || "Welcome to the Smart Notice Board \u2022 Stay updated with the latest announcements \u2022 Have a great day!"
+    const sizeStyle: React.CSSProperties = typeof config.tickerTextSize === "number"
+      ? { fontSize: `${config.tickerTextSize}px` } : {}
+    const speedStyle: React.CSSProperties = typeof config.tickerSpeed === "number" && config.tickerSpeed > 0
+      ? { animationDuration: `${config.tickerSpeed}s` } : {}
     return (
       <div className="flex h-full items-center overflow-hidden">
-        <p className="animate-marquee whitespace-nowrap text-sm font-medium text-amber-300">
+        <p className="animate-marquee whitespace-nowrap text-sm font-medium" style={{ color: config.textColor as string || "rgb(252 211 77)", ...sizeStyle, ...speedStyle }}>
           {text}
         </p>
       </div>
@@ -121,15 +133,15 @@ function WidgetContent({
     return (
       <div className="flex h-full flex-col items-center justify-center bg-gradient-to-r from-sky-600/30 to-indigo-600/30 px-6 gap-1">
         <p
-          className={`text-center font-semibold text-white/90 ${titleStyle.fontSize ? "" : autoTitleCls}`}
-          style={titleStyle}
+          className={`text-center font-semibold ${titleStyle.fontSize ? "" : autoTitleCls}`}
+          style={{ color: (config.titleColor as string) || "var(--tile-fg, #ffffff)", ...titleStyle }}
         >
           {title}
         </p>
         {subtitle && (
           <p
-            className={`text-center text-white/60 ${subtitleStyle.fontSize ? "" : autoSubtitleCls}`}
-            style={subtitleStyle}
+            className={`text-center ${subtitleStyle.fontSize ? "" : autoSubtitleCls}`}
+            style={{ color: (config.textColor as string) || "var(--tile-fg-muted, #a1a1aa)", ...subtitleStyle }}
           >
             {subtitle}
           </p>
@@ -143,6 +155,8 @@ function WidgetContent({
         city={config.weatherCity || "London"}
         units={config.weatherUnits || "metric"}
         showForecast={config.weatherShowForecast !== "false" && config.weatherShowForecast !== false}
+        tempSize={typeof config.weatherTempSize === "number" ? config.weatherTempSize : undefined}
+        citySize={typeof config.weatherCitySize === "number" ? config.weatherCitySize : undefined}
       />
     )
   }
@@ -198,14 +212,7 @@ function WidgetContent({
         totalPages={typeof config.pdfTotalPages === "number" ? config.pdfTotalPages : undefined}
         showChrome={config.pdfShowChrome !== "false" && config.pdfShowChrome !== false}
         fit={(config.pdfFit as "page" | "width" | "height") || "page"}
-      />
-    )
-  }
-  if (type === "sensor") {
-    return (
-      <SensorWidget
-        sensorType={config.sensorType as string || "all"}
-        refreshSec={typeof config.sensorRefreshSec === "number" ? config.sensorRefreshSec : 30}
+        loop={(config.pdfLoop as "forward" | "pingpong") || "forward"}
       />
     )
   }
@@ -256,15 +263,17 @@ function StackNoticeBlock({
   const alignCls = align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"
   const itemAlignCls = align === "center" ? "items-center" : align === "right" ? "items-end" : "items-start"
   const valignCls = valign === "center" ? "justify-center" : valign === "bottom" ? "justify-end" : "justify-start"
+  const noticeTitlePx = typeof config.noticeTitleSize === "number" ? config.noticeTitleSize : config.titleSize
+  const noticeBodyPx = typeof config.noticeBodySize === "number" ? config.noticeBodySize : config.bodySize
   const titleStyle: React.CSSProperties = {
     ...(config.fontFamily && { fontFamily: config.fontFamily }),
-    ...(config.titleSize && { fontSize: config.titleSize }),
-    ...(config.titleColor && { color: config.titleColor as string }),
+    ...(noticeTitlePx && { fontSize: noticeTitlePx }),
+    color: (config.titleColor as string) || (emergency ? "rgb(254 226 226)" : "var(--tile-fg, #ffffff)"),
   }
   const bodyStyle: React.CSSProperties = {
     ...(config.fontFamily && { fontFamily: config.fontFamily }),
-    ...(config.bodySize && { fontSize: config.bodySize }),
-    ...(config.textColor && { color: config.textColor as string }),
+    ...(noticeBodyPx && { fontSize: noticeBodyPx }),
+    color: (config.textColor as string) || (emergency ? "rgb(254 202 202 / 0.85)" : "var(--tile-fg-muted, #a1a1aa)"),
   }
   return (
     <div className={`relative flex h-full w-full flex-col gap-1 p-4 ${valignCls} ${itemAlignCls} ${emergency ? "animate-pulse-subtle bg-red-950/20" : ""}`}>
@@ -273,14 +282,14 @@ function StackNoticeBlock({
       )}
       {inline.category && (
         <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
-          emergency ? "bg-red-500/20 text-red-300" : "bg-white/10 text-zinc-400"
-        }`}>
+          emergency ? "bg-red-500/20 text-red-300" : "bg-white/10"
+        }`} style={emergency ? undefined : { color: "var(--tile-fg-muted, #a1a1aa)" }}>
           {inline.category}
         </span>
       )}
       {inline.title && (
         <h2
-          className={`text-balance font-semibold leading-snug ${emergency ? "text-red-100" : "text-white"} ${alignCls}`}
+          className={`text-balance font-semibold leading-snug ${alignCls}`}
           style={titleStyle}
         >
           {inline.title}
@@ -288,7 +297,7 @@ function StackNoticeBlock({
       )}
       {inline.body && (
         <p
-          className={`mt-1 leading-relaxed ${emergency ? "text-red-200/85" : "text-zinc-300"} ${alignCls}`}
+          className={`mt-1 leading-relaxed ${alignCls}`}
           style={bodyStyle}
         >
           {inline.body}
@@ -334,29 +343,34 @@ function NoticeContent({
                       weight === "bold"       ? "font-bold"       :
                       weight === "extrabold"  ? "font-extrabold"  : "font-semibold"
 
+  // Notice-specific sizes win over the generic title/body sizes.
+  const noticeTitlePx = typeof config.noticeTitleSize === "number" ? config.noticeTitleSize : config.titleSize
+  const noticeBodyPx = typeof config.noticeBodySize === "number" ? config.noticeBodySize : config.bodySize
+
   const titleStyle: React.CSSProperties = {
     ...(config.fontFamily && { fontFamily: config.fontFamily }),
-    ...(config.titleSize && { fontSize: config.titleSize }),
-    ...(config.titleColor && { color: config.titleColor as string }),
+    ...(noticeTitlePx && { fontSize: noticeTitlePx }),
+    color: (config.titleColor as string) || "var(--tile-fg, #ffffff)",
   }
   const bodyStyle: React.CSSProperties = {
     ...(config.fontFamily && { fontFamily: config.fontFamily }),
-    ...(config.bodySize && { fontSize: config.bodySize }),
-    ...(config.textColor && { color: config.textColor as string }),
+    ...(noticeBodyPx && { fontSize: noticeBodyPx }),
+    color: (config.textColor as string) || (hasMedia ? "rgb(228 228 231)" : "var(--tile-fg-muted, #a1a1aa)"),
   }
 
   return (
     <div className={`flex h-full w-full flex-col gap-1 ${valignCls} ${itemAlignCls}`}>
       {notice.category && (
-        <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-zinc-400">
+        <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider"
+          style={{ color: "var(--tile-fg-muted, #a1a1aa)" }}>
           {notice.category}
         </span>
       )}
-      <h2 className={`text-balance leading-snug text-white ${weightCls} ${titleCls} ${alignCls}`} style={titleStyle}>
+      <h2 className={`text-balance leading-snug ${weightCls} ${noticeTitlePx ? "" : titleCls} ${alignCls}`} style={titleStyle}>
         {notice.title}
       </h2>
       {(notice.summary || notice.body) && (
-        <p className={`mt-2 leading-relaxed ${hasMedia ? "text-zinc-200" : "text-zinc-300"} ${bodyCls} ${alignCls}`} style={bodyStyle}>
+        <p className={`mt-2 leading-relaxed ${noticeBodyPx ? "" : bodyCls} ${alignCls}`} style={bodyStyle}>
           {notice.summary ?? notice.body}
         </p>
       )}
@@ -377,7 +391,7 @@ function TileCardInner({ item }: { item: DisplayTileDTO }) {
     x: tile.grid_x, y: tile.grid_y, w: tile.grid_w, h: tile.grid_h
   })
   const hidden = !is_visible_by_schedule
-  const isWidget = ["clock", "ticker", "banner", "weather", "video", "carousel", "sensor", "timetable", "teacher_status", "teachers_list", "pdf", "stack"].includes(tile.tile_type)
+  const isWidget = ["clock", "ticker", "banner", "weather", "video", "carousel", "timetable", "teacher_status", "teachers_list", "pdf", "stack"].includes(tile.tile_type)
   const hasMedia = !!media_url
   const hasNotice = !!notice
   const config = parseTileConfig(tile.config_json)
@@ -388,16 +402,58 @@ function TileCardInner({ item }: { item: DisplayTileDTO }) {
   const borderColor = priorityBorderColor(effective_priority, isEmergency)
 
   const customPad = typeof config.padding === "number" ? `${config.padding}px` : undefined
+  const tileTheme = (config.theme as "light" | "dark" | "auto" | undefined) ?? "auto"
+  const themeClass = tileTheme === "light" ? "tile-theme-light" : tileTheme === "dark" ? "tile-theme-dark" : "tile-theme-auto"
+
+  const zoom = typeof config.zoom === "number" && config.zoom > 0 ? config.zoom : 1
   const articleStyle: React.CSSProperties = {
     gridRow, gridColumn, zIndex: tile.z_index,
     ...(config.bgColor && { backgroundColor: config.bgColor as string }),
     ...(customPad && !noPadding && { padding: customPad }),
   }
 
+  // For zoom !== 1 we wrap content in a transform-scaled div sized at
+  // 100/zoom so layout space matches what's drawn. Article keeps overflow-hidden.
+  const zoomWrap = zoom !== 1 ? {
+    transform: `scale(${zoom})`,
+    transformOrigin: "top left",
+    width: `${100 / zoom}%`,
+    height: `${100 / zoom}%`,
+  } as React.CSSProperties : undefined
+
+  const inner = isWidget ? (
+    <WidgetContent type={tile.tile_type} tileW={tile.grid_w} tileH={tile.grid_h} config={config} mediaUrl={media_url} mediaId={tile.media_id} />
+  ) : isMediaOnly ? (
+    hasMedia ? (
+      <MediaImage src={media_url!} alt={notice?.title} className="absolute inset-0 h-full w-full object-cover" />
+    ) : hasConfigImage ? (
+      <MediaImage src={config.imageUrl!} alt={config.imageAlt} className="absolute inset-0 h-full w-full object-cover" />
+    ) : (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-zinc-500">No media</p>
+      </div>
+    )
+  ) : hasMedia && hasNotice ? (
+    <div className="relative h-full">
+      <MediaImage src={media_url!} alt={notice!.title} className="absolute inset-0 h-full w-full object-cover" />
+      <div className="relative z-10 flex h-full flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4">
+        <NoticeContent notice={notice} tile={tile} config={config} hasMedia />
+      </div>
+    </div>
+  ) : (
+    <NoticeContent notice={notice} tile={tile} config={config} hasMedia={false} />
+  )
+
   return (
     <article
-      className={`relative overflow-hidden rounded-xl border shadow-lg backdrop-blur-sm transition-all duration-700 ${borderColor} ${
-        config.bgColor ? "" : "bg-zinc-900/90"
+      className={`relative overflow-hidden rounded-xl border shadow-lg backdrop-blur-sm transition-all duration-700 ${themeClass} ${borderColor} ${
+        config.bgColor
+          ? ""
+          : tileTheme === "light"
+            ? "bg-white"
+            : tileTheme === "dark"
+              ? "bg-zinc-900"
+              : "bg-zinc-900/90"
       } ${hidden ? "opacity-20" : "opacity-100"} ${
         noPadding ? "p-0" : customPad ? "" : "p-4"
       } ${isEmergency && !hidden ? "animate-pulse-subtle" : ""}`}
@@ -407,27 +463,10 @@ function TileCardInner({ item }: { item: DisplayTileDTO }) {
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-600 via-red-500 to-red-600" />
       )}
 
-      {isWidget ? (
-        <WidgetContent type={tile.tile_type} tileW={tile.grid_w} tileH={tile.grid_h} config={config} mediaUrl={media_url} mediaId={tile.media_id} />
-      ) : isMediaOnly ? (
-        hasMedia ? (
-          <MediaImage src={media_url!} alt={notice?.title} className="absolute inset-0 h-full w-full object-cover" />
-        ) : hasConfigImage ? (
-          <MediaImage src={config.imageUrl!} alt={config.imageAlt} className="absolute inset-0 h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-zinc-500">No media</p>
-          </div>
-        )
-      ) : hasMedia && hasNotice ? (
-        <div className="relative h-full">
-          <MediaImage src={media_url!} alt={notice!.title} className="absolute inset-0 h-full w-full object-cover" />
-          <div className="relative z-10 flex h-full flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4">
-            <NoticeContent notice={notice} tile={tile} config={config} hasMedia />
-          </div>
-        </div>
+      {zoomWrap ? (
+        <div style={zoomWrap}>{inner}</div>
       ) : (
-        <NoticeContent notice={notice} tile={tile} config={config} hasMedia={false} />
+        inner
       )}
     </article>
   )
@@ -446,6 +485,7 @@ export function DisplayCanvas({ refreshInterval = DEFAULT_REFRESH_MS }: { refres
   const [bundle, setBundle] = useState<DisplayBundle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saver, setSaver] = useState<ScreenSaverConfig | null>(null)
 
   const fetchBundle = useCallback(async () => {
     try {
@@ -467,12 +507,25 @@ export function DisplayCanvas({ refreshInterval = DEFAULT_REFRESH_MS }: { refres
     return () => clearInterval(interval)
   }, [fetchBundle, refreshInterval])
 
+  // Poll screen saver settings every 60s — admin changes propagate without
+  // needing to reload the kiosk.
+  useEffect(() => {
+    let cancelled = false
+    const fetchCfg = async () => {
+      try {
+        const res = await fetch("/api/settings/screen_saver", { cache: "no-store" })
+        if (!res.ok) return
+        const j = await res.json()
+        if (!cancelled) setSaver(loadScreenSaverConfig(j.value))
+      } catch { /* ignore */ }
+    }
+    fetchCfg()
+    const id = setInterval(fetchCfg, 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
-      </div>
-    )
+    return <BrandedLoader message="Loading display…" />
   }
 
   if (error || !bundle) {
@@ -502,17 +555,20 @@ export function DisplayCanvas({ refreshInterval = DEFAULT_REFRESH_MS }: { refres
   )
 
   return (
-    <div
-      className="grid h-full w-full bg-zinc-950 p-2 transition-all duration-500"
-      style={{
-        gridTemplateColumns: `repeat(${bundle.grid_cols}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${bundle.grid_rows}, minmax(0, 1fr))`,
-        gap: bundle.gap_px
-      }}
-    >
-      {tiles.map((item) => (
-        <TileCard key={item.tile.id} item={item} />
-      ))}
-    </div>
+    <>
+      <div
+        className="grid h-full w-full bg-zinc-950 p-2 transition-all duration-500"
+        style={{
+          gridTemplateColumns: `repeat(${bundle.grid_cols}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${bundle.grid_rows}, minmax(0, 1fr))`,
+          gap: bundle.gap_px
+        }}
+      >
+        {tiles.map((item) => (
+          <TileCard key={item.tile.id} item={item} />
+        ))}
+      </div>
+      {saver && <ScreenSaver config={saver} />}
+    </>
   )
 }

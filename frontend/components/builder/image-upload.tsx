@@ -95,22 +95,22 @@ export function ImageUpload({ currentMediaId, currentImageUrl, disabled, onSelec
     <div className="flex flex-col gap-2">
       {/* Current preview */}
       {previewUrl && (
-        <div className="relative h-24 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-800">
+        <div className="relative h-24 w-full overflow-hidden rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={previewUrl} alt="" className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          <span className="absolute bottom-1 left-2 text-[10px] text-white/70">
+          <span className="absolute bottom-1 left-2 text-[10px] text-zinc-900 dark:text-white/70">
             {currentMediaId ? `Media #${currentMediaId}` : "External URL"}
           </span>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex rounded-lg bg-zinc-800/50 p-0.5">
+      <div className="flex rounded-lg bg-zinc-100/50 dark:bg-zinc-800/50 p-0.5">
         {(["upload", "library", "url"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} disabled={disabled}
             className={`flex-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${
-              tab === t ? "bg-zinc-700 text-zinc-200" : "text-zinc-500 hover:text-zinc-300"
+              tab === t ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             } disabled:opacity-50`}>
             {t === "upload" ? "Upload" : t === "library" ? "Library" : "URL"}
           </button>
@@ -125,20 +125,20 @@ export function ImageUpload({ currentMediaId, currentImageUrl, disabled, onSelec
           onDrop={handleDrop}
           onClick={() => !disabled && fileRef.current?.click()}
           className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
-            dragOver ? "border-blue-400 bg-blue-500/10" : "border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/30"
+            dragOver ? "border-blue-400 bg-blue-500/10" : "border-zinc-300 dark:border-zinc-700 hover:border-zinc-500 dark:hover:border-zinc-500 hover:bg-zinc-100/30 dark:hover:bg-zinc-800/30"
           } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           {uploading ? (
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-blue-400" />
-              <span className="text-xs text-zinc-400">Uploading...</span>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 dark:border-zinc-600 border-t-blue-400" />
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">Uploading...</span>
             </div>
           ) : (
             <>
               <svg className="h-8 w-8 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
-              <span className="text-xs text-zinc-400">Drop image here or click to browse</span>
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">Drop image here or click to browse</span>
               <span className="text-[10px] text-zinc-600">JPG, PNG, GIF, WebP &middot; Max 10 MB</span>
             </>
           )}
@@ -161,13 +161,13 @@ export function ImageUpload({ currentMediaId, currentImageUrl, disabled, onSelec
               {library.map((m) => (
                 <button key={m.id} onClick={() => onSelectMedia(m.id, m.url)} disabled={disabled}
                   className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all hover:opacity-90 ${
-                    currentMediaId === m.id ? "border-blue-400 ring-1 ring-blue-400/50" : "border-zinc-700"
+                    currentMediaId === m.id ? "border-blue-400 ring-1 ring-blue-400/50" : "border-zinc-300 dark:border-zinc-700"
                   } disabled:opacity-50`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={m.url} alt="" className="h-full w-full object-cover" loading="lazy" />
                   {currentMediaId === m.id && (
                     <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
-                      <span className="rounded bg-blue-500 px-1.5 py-0.5 text-[8px] font-bold text-white">SELECTED</span>
+                      <span className="rounded bg-blue-500 px-1.5 py-0.5 text-[8px] font-bold text-zinc-900 dark:text-white">SELECTED</span>
                     </div>
                   )}
                 </button>
@@ -175,7 +175,7 @@ export function ImageUpload({ currentMediaId, currentImageUrl, disabled, onSelec
             </div>
           )}
           <button onClick={loadLibrary} disabled={loadingLib}
-            className="text-[10px] text-zinc-600 hover:text-zinc-400 disabled:opacity-30">
+            className="text-[10px] text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 disabled:opacity-30">
             Refresh library
           </button>
         </div>
@@ -189,7 +189,7 @@ export function ImageUpload({ currentMediaId, currentImageUrl, disabled, onSelec
             onBlur={() => onSetImageUrl(urlInput)}
             onKeyDown={(e) => { if (e.key === "Enter") onSetImageUrl(urlInput) }}
             placeholder="https://example.com/image.jpg"
-            className="w-full rounded bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50" />
+            className="w-full rounded bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50" />
           <p className="text-[10px] text-zinc-600">Paste any public image URL. Press Enter to apply.</p>
         </div>
       )}

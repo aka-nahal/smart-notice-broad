@@ -95,7 +95,7 @@ export function TeachersTab() {
       {/* Left column: teacher list */}
       <div className="col-span-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-zinc-100">Teachers</h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Teachers</h2>
           <button
             onClick={() => setShowCreate((v) => !v)}
             className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
@@ -105,26 +105,26 @@ export function TeachersTab() {
         </div>
 
         {showCreate && (
-          <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2">
+          <div className="mb-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/60 p-3 space-y-2">
             <input
               autoFocus
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Name *"
-              className="w-full rounded bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500/50"
+              className="w-full rounded bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-blue-500/50"
             />
             <div className="grid grid-cols-2 gap-2">
               <input
                 value={form.department ?? ""}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
                 placeholder="Department"
-                className="rounded bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500/50"
+                className="rounded bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-blue-500/50"
               />
               <input
                 value={form.room ?? ""}
                 onChange={(e) => setForm({ ...form, room: e.target.value })}
                 placeholder="Cabin / Room"
-                className="rounded bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500/50"
+                className="rounded bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-blue-500/50"
               />
             </div>
             <button
@@ -139,15 +139,15 @@ export function TeachersTab() {
         <input
           value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Search teachers…"
-          className="w-full mb-3 rounded-lg bg-zinc-900 px-3 py-2 text-sm text-zinc-200 outline-none border border-zinc-800 focus:border-blue-500/40"
+          className="w-full mb-3 rounded-lg bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-200 dark:border-zinc-800 focus:border-blue-500/40"
         />
 
         {loading ? (
           <div className="flex h-32 items-center justify-center">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 dark:border-zinc-700 border-t-blue-400" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-zinc-800 p-6 text-center text-xs text-zinc-500">
+          <div className="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-6 text-center text-xs text-zinc-500">
             {teachers.length === 0 ? "No teachers yet." : "No matches."}
           </div>
         ) : (
@@ -159,7 +159,7 @@ export function TeachersTab() {
                   className={`group flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors ${
                     selectedId === t.id
                       ? "bg-blue-500/10 border border-blue-500/30 text-blue-200"
-                      : "hover:bg-zinc-800/50 text-zinc-300 border border-transparent"
+                      : "hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 border border-transparent"
                   }`}
                 >
                   <StatusDot status={t.status as TeacherStatus} />
@@ -187,12 +187,12 @@ export function TeachersTab() {
       {/* Right column: schedule editor */}
       <div className="col-span-8">
         {selected == null ? (
-          <div className="flex h-[60vh] items-center justify-center rounded-xl border border-dashed border-zinc-800 text-zinc-500 flex-col gap-2">
+          <div className="flex h-[60vh] items-center justify-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-zinc-500 flex-col gap-2">
             <span className="text-3xl">🗂️</span>
             <p className="text-sm">Select a teacher to edit their weekly schedule</p>
           </div>
         ) : periods.length === 0 ? (
-          <div className="flex h-[60vh] items-center justify-center rounded-xl border border-dashed border-zinc-800 text-zinc-500 flex-col gap-2 text-center px-4">
+          <div className="flex h-[60vh] items-center justify-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-zinc-500 flex-col gap-2 text-center px-4">
             <span className="text-3xl">⏰</span>
             <p className="text-sm">No periods defined yet.</p>
             <p className="text-xs text-zinc-600">Switch to the Periods tab and add at least one period first.</p>
@@ -278,31 +278,31 @@ function ScheduleEditor({ teacher, periods }: { teacher: TeacherRead; periods: P
     <div>
       <div className="mb-4 flex items-baseline justify-between">
         <div>
-          <h3 className="text-base font-semibold text-zinc-100">{teacher.name}</h3>
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{teacher.name}</h3>
           <p className="text-xs text-zinc-500">
             Click any cell to assign a subject + room for that day & period.
           </p>
         </div>
         {loading && (
-          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
+          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 dark:border-zinc-700 border-t-blue-400" />
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-800">
+      <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-zinc-900/60 text-[10px] uppercase tracking-wider text-zinc-500">
-              <th className="px-3 py-2 text-left w-28 border-b border-zinc-800">Period</th>
+            <tr className="bg-white/60 dark:bg-zinc-900/60 text-[10px] uppercase tracking-wider text-zinc-500">
+              <th className="px-3 py-2 text-left w-28 border-b border-zinc-200 dark:border-zinc-800">Period</th>
               {WEEKDAY_NAMES.map((d) => (
-                <th key={d} className="px-3 py-2 text-left border-b border-zinc-800">{d.slice(0, 3)}</th>
+                <th key={d} className="px-3 py-2 text-left border-b border-zinc-200 dark:border-zinc-800">{d.slice(0, 3)}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {periods.map((p) => (
-              <tr key={p.id} className="border-b border-zinc-800/50">
+              <tr key={p.id} className="border-b border-zinc-200/50 dark:border-zinc-800/50">
                 <td className="px-3 py-2 align-top">
-                  <p className="text-xs font-semibold text-zinc-300">{p.name}</p>
+                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{p.name}</p>
                   <p className="text-[10px] font-mono text-zinc-500">{p.start_time}–{p.end_time}</p>
                 </td>
                 {WEEKDAY_NAMES.map((_, dayIdx) => {
@@ -314,7 +314,7 @@ function ScheduleEditor({ teacher, periods }: { teacher: TeacherRead; periods: P
                         className={`block w-full min-h-[58px] rounded-md px-2 py-1.5 text-left transition-colors ${
                           slot
                             ? "bg-blue-900/30 border border-blue-500/30 hover:bg-blue-900/50"
-                            : "border border-dashed border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/40"
+                            : "border border-dashed border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 hover:bg-zinc-100/40 dark:hover:bg-zinc-800/40"
                         }`}
                       >
                         {slot ? (
@@ -342,9 +342,9 @@ function ScheduleEditor({ teacher, periods }: { teacher: TeacherRead; periods: P
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setEditing(null)}>
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+            className="w-full max-w-sm rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5 shadow-2xl"
           >
-            <h4 className="text-sm font-semibold text-zinc-200 mb-1">
+            <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
               {WEEKDAY_NAMES[editing.day]} · {periods.find((p) => p.id === editing.periodId)?.name}
             </h4>
             <p className="text-[11px] text-zinc-500 mb-4">
@@ -358,7 +358,7 @@ function ScheduleEditor({ teacher, periods }: { teacher: TeacherRead; periods: P
                 autoFocus value={draft.subject}
                 onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
                 placeholder="Mathematics"
-                className="w-full rounded bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500/50"
+                className="w-full rounded bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-blue-500/50"
               />
             </label>
             <label className="block mb-4">
@@ -367,7 +367,7 @@ function ScheduleEditor({ teacher, periods }: { teacher: TeacherRead; periods: P
                 value={draft.room}
                 onChange={(e) => setDraft({ ...draft, room: e.target.value })}
                 placeholder="B-204"
-                className="w-full rounded bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500/50"
+                className="w-full rounded bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-blue-500/50"
               />
             </label>
 
@@ -380,13 +380,13 @@ function ScheduleEditor({ teacher, periods }: { teacher: TeacherRead; periods: P
               </button>
               <button
                 onClick={clearCell} disabled={busy}
-                className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/20 hover:border-red-500/30"
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/20 hover:border-red-500/30"
               >
                 Clear
               </button>
               <button
                 onClick={() => setEditing(null)}
-                className="rounded-md px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800"
+                className="rounded-md px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
                 Cancel
               </button>

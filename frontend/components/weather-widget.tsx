@@ -29,9 +29,11 @@ interface Props {
   units?: "metric" | "imperial"
   showForecast?: boolean
   compact?: boolean // for builder preview
+  tempSize?: number   // px override for the main temperature
+  citySize?: number   // px override for the city name
 }
 
-export function WeatherWidget({ city = "London", units = "metric", showForecast = false, compact = false }: Props) {
+export function WeatherWidget({ city = "London", units = "metric", showForecast = false, compact = false, tempSize, citySize }: Props) {
   const [data, setData] = useState<WeatherData | null>(null)
   const [forecast, setForecast] = useState<ForecastItem[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -72,9 +74,28 @@ export function WeatherWidget({ city = "London", units = "metric", showForecast 
   }, [fetchWeather])
 
   if (loading) {
+    if (compact) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-1">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-teal-400" />
+          <span className="text-[8px] text-teal-500/60">weather</span>
+        </div>
+      )
+    }
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-teal-400" />
+      <div className="flex h-full flex-col gap-2 p-3 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1.5">
+            <div className="h-2.5 w-20 rounded bg-zinc-300/60 dark:bg-zinc-700/60" />
+            <div className="h-2 w-14 rounded bg-zinc-300/40 dark:bg-zinc-700/40" />
+          </div>
+          <div className="h-10 w-10 rounded-full bg-zinc-300/60 dark:bg-zinc-700/60" />
+        </div>
+        <div className="h-8 w-16 rounded bg-zinc-300/60 dark:bg-zinc-700/60 mt-1" />
+        <div className="flex gap-2 mt-auto">
+          <div className="h-2 w-12 rounded bg-zinc-300/40 dark:bg-zinc-700/40" />
+          <div className="h-2 w-14 rounded bg-zinc-300/40 dark:bg-zinc-700/40" />
+        </div>
       </div>
     )
   }
@@ -107,21 +128,25 @@ export function WeatherWidget({ city = "London", units = "metric", showForecast 
   }
 
   // Full mode for display
+  const cityStyle: React.CSSProperties = typeof citySize === "number" ? { fontSize: `${citySize}px` } : {}
+  const tempStyle: React.CSSProperties = typeof tempSize === "number"
+    ? { fontSize: `${tempSize}px`, lineHeight: 1 }
+    : {}
   return (
-    <div className="flex h-full flex-col justify-between p-3">
+    <div className="flex h-full flex-col justify-between p-3" style={{ color: "var(--tile-fg, #ffffff)" }}>
       {/* Top: city + main temp */}
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400 font-medium">{data.city}, {data.country}</p>
-            <p className="text-xs text-zinc-600 capitalize">{data.description}</p>
+            <p className="font-medium" style={{ color: "var(--tile-fg-muted, #a1a1aa)", ...(cityStyle.fontSize ? cityStyle : { fontSize: "0.75rem" }) }}>{data.city}, {data.country}</p>
+            <p className="text-xs capitalize" style={{ color: "var(--tile-fg-subtle, #71717a)" }}>{data.description}</p>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={data.icon_url} alt={data.description} className="h-12 w-12 -mr-1" />
         </div>
         <div className="mt-1 flex items-end gap-2">
-          <span className="text-3xl font-bold tabular-nums text-white/90">{Math.round(data.temp)}</span>
-          <span className="text-sm text-zinc-400 mb-1">{unitLabel}</span>
+          <span className="font-bold tabular-nums" style={tempStyle.fontSize ? tempStyle : { fontSize: "1.875rem", lineHeight: 1 }}>{Math.round(data.temp)}</span>
+          <span className="text-sm mb-1" style={{ color: "var(--tile-fg-muted, #a1a1aa)" }}>{unitLabel}</span>
         </div>
       </div>
 

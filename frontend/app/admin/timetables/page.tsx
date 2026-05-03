@@ -161,7 +161,7 @@ export default function TimetablesPage() {
   return (
     <div className="flex h-full">
       {/* Sidebar — timetable list */}
-      <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 flex flex-col">
+      <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-white/30 dark:bg-zinc-900/30 flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Timetables</h2>
           <button
@@ -173,7 +173,7 @@ export default function TimetablesPage() {
         </div>
 
         {showNewTT && (
-          <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800/50 space-y-2">
+          <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-800/50 space-y-2">
             <input
               autoFocus
               value={newTTName}
@@ -203,9 +203,9 @@ export default function TimetablesPage() {
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loading ? (
-            <p className="text-center text-xs text-zinc-400 py-4">Loading…</p>
+            <p className="text-center text-xs text-zinc-600 dark:text-zinc-400 py-4">Loading…</p>
           ) : timetables.length === 0 ? (
-            <p className="text-center text-xs text-zinc-400 py-4">No timetables yet.</p>
+            <p className="text-center text-xs text-zinc-600 dark:text-zinc-400 py-4">No timetables yet.</p>
           ) : (
             timetables.map((tt) => (
               <div
@@ -219,7 +219,7 @@ export default function TimetablesPage() {
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{tt.name}</p>
-                  <p className="text-[10px] text-zinc-400">{tt.entries.length} entries</p>
+                  <p className="text-[10px] text-zinc-600 dark:text-zinc-400">{tt.entries.length} entries</p>
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteTimetable(tt.id) }}
@@ -236,30 +236,30 @@ export default function TimetablesPage() {
       {/* Main area */}
       <main className="flex-1 overflow-y-auto">
         {!selected ? (
-          <div className="flex h-full items-center justify-center text-zinc-400 flex-col gap-2">
+          <div className="flex h-full items-center justify-center text-zinc-600 dark:text-zinc-400 flex-col gap-2">
             <span className="text-4xl">📅</span>
             <p className="text-sm">Select a timetable to edit</p>
           </div>
         ) : (
           <div className="px-6 py-6 max-w-3xl">
             <div className="mb-6">
-              <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">{selected.name}</h1>
+              <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-900 dark:text-zinc-100">{selected.name}</h1>
               {selected.description && (
                 <p className="text-sm text-zinc-500 mt-0.5">{selected.description}</p>
               )}
-              <p className="text-xs text-zinc-400 mt-1">
-                Tile ID to use in builder config: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-zinc-600 dark:text-zinc-300">{selected.id}</code>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
+                Tile ID to use in builder config: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-zinc-600 dark:text-zinc-700 dark:text-zinc-300">{selected.id}</code>
               </p>
             </div>
 
             {/* Live teacher status — current class or cabin fallback */}
-            <div className="mb-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 p-4">
+            <div className="mb-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-white/40 dark:bg-zinc-900/40 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm">📡</span>
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-600 dark:text-zinc-400">
                   Live teacher status
                 </h2>
-                <span className="ml-auto text-[10px] text-zinc-400">
+                <span className="ml-auto text-[10px] text-zinc-600 dark:text-zinc-400">
                   {liveTeachers.length} teacher{liveTeachers.length === 1 ? "" : "s"} · today
                 </span>
               </div>
@@ -273,7 +273,7 @@ export default function TimetablesPage() {
                   {liveTeachers.map((t) => (
                     <div
                       key={t.id}
-                      className="h-28 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-900 overflow-hidden"
+                      className="h-28 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden"
                     >
                       <TeacherStatusWidget
                         teacherId={t.id}
@@ -312,7 +312,7 @@ export default function TimetablesPage() {
             <div className="space-y-2 mb-4">
               {dayEntries.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-center">
-                  <p className="text-sm text-zinc-400">No periods for {DAY_NAMES[activeDay]}</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">No periods for {DAY_NAMES[activeDay]}</p>
                 </div>
               ) : (
                 dayEntries
@@ -320,16 +320,16 @@ export default function TimetablesPage() {
                   .map((entry) => (
                     <div
                       key={entry.id}
-                      className="flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 px-4 py-3"
+                      className="flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 px-4 py-3"
                     >
                       <div className="text-center shrink-0 w-14">
                         <p className="text-xs font-mono text-zinc-500">{entry.start_time}</p>
-                        <p className="text-[10px] text-zinc-700 dark:text-zinc-400 font-mono">{entry.end_time}</p>
+                        <p className="text-[10px] text-zinc-700 dark:text-zinc-600 dark:text-zinc-400 font-mono">{entry.end_time}</p>
                       </div>
                       <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-700" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">{entry.subject}</p>
-                        <div className="flex gap-3 text-[10px] text-zinc-400 mt-0.5">
+                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-900 dark:text-zinc-100 truncate">{entry.subject}</p>
+                        <div className="flex gap-3 text-[10px] text-zinc-600 dark:text-zinc-400 mt-0.5">
                           {entry.room && <span>📍 {entry.room}</span>}
                           {entry.teacher && <span>👤 {entry.teacher}</span>}
                         </div>
@@ -350,7 +350,7 @@ export default function TimetablesPage() {
 
             {/* Add entry */}
             {showNewEntry ? (
-              <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-4 space-y-3">
+              <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-white/50 dark:bg-zinc-900/50 p-4 space-y-3">
                 <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
                   Add period — {DAY_NAMES[activeDay]}
                 </p>
@@ -362,7 +362,7 @@ export default function TimetablesPage() {
                       value={newEntry.subject}
                       onChange={(e) => setNewEntry({ ...newEntry, subject: e.target.value })}
                       placeholder="Mathematics"
-                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -371,7 +371,7 @@ export default function TimetablesPage() {
                       type="number" min={1} max={12}
                       value={newEntry.period_number}
                       onChange={(e) => setNewEntry({ ...newEntry, period_number: parseInt(e.target.value) || 1 })}
-                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -380,7 +380,7 @@ export default function TimetablesPage() {
                       type="time"
                       value={newEntry.start_time}
                       onChange={(e) => setNewEntry({ ...newEntry, start_time: e.target.value })}
-                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -389,7 +389,7 @@ export default function TimetablesPage() {
                       type="time"
                       value={newEntry.end_time}
                       onChange={(e) => setNewEntry({ ...newEntry, end_time: e.target.value })}
-                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -398,7 +398,7 @@ export default function TimetablesPage() {
                       value={newEntry.room}
                       onChange={(e) => setNewEntry({ ...newEntry, room: e.target.value })}
                       placeholder="Room 101"
-                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -407,7 +407,7 @@ export default function TimetablesPage() {
                       value={newEntry.teacher}
                       onChange={(e) => setNewEntry({ ...newEntry, teacher: e.target.value })}
                       placeholder="Mr. Smith"
-                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>

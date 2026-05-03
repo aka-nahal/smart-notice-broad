@@ -26,6 +26,7 @@ import { TileInspector } from "./tile-inspector"
 import { MultiInspector } from "./multi-inspector"
 import { ContextMenu, type ContextMenuItem } from "./context-menu"
 import { ToastProvider, useToast } from "./toast"
+import { BrandedLoader } from "@/components/skeleton"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -806,24 +807,23 @@ function LayoutBuilderInner() {
   // ---- Render ----
   if (loading)
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-zinc-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
-        <p className="text-sm text-zinc-500">Loading builder&hellip;</p>
+      <div className="h-screen bg-zinc-50 dark:bg-zinc-950">
+        <BrandedLoader message="Loading builder…" />
       </div>
     )
 
   if (!activeLayout || !version)
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-6 bg-zinc-950">
-        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-8 text-center max-w-md">
+      <div className="flex h-screen flex-col items-center justify-center gap-6 bg-zinc-50 dark:bg-zinc-950">
+        <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-8 text-center max-w-md">
           <div className="mx-auto mb-4 h-14 w-14 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-            <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <svg className="h-7 w-7 text-zinc-900 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-zinc-200">Welcome to the Layout Builder</h2>
+          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Welcome to the Layout Builder</h2>
           <p className="mt-2 text-sm text-zinc-500">Create your first layout to start designing your notice board display.</p>
-          <button onClick={createFirstLayout} className="mt-6 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20 transition-all">
+          <button onClick={createFirstLayout} className="mt-6 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-zinc-900 dark:text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20 transition-all">
             Create Your First Layout
           </button>
         </div>
@@ -831,7 +831,7 @@ function LayoutBuilderInner() {
     )
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-950">
+    <div className="flex h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
       <BuilderToolbar
         layouts={layouts} activeLayout={activeLayout} version={version}
         saving={save.saving} lastSaved={save.lastSaved} saveError={save.saveError}
@@ -857,7 +857,7 @@ function LayoutBuilderInner() {
 
       {/* Status bar */}
       <div className={`flex items-center gap-3 border-b px-4 py-1 text-xs ${
-        mode.kind !== "idle" ? "border-blue-500/30 bg-blue-950/30 text-blue-400" : "border-zinc-800/50 bg-zinc-900/30 text-zinc-500"
+        mode.kind !== "idle" ? "border-blue-500/30 bg-blue-950/30 text-blue-400" : "border-zinc-200/50 dark:border-zinc-800/50 bg-white/30 dark:bg-zinc-900/30 text-zinc-500"
       }`}>
         {mode.kind !== "idle" && (
           <span className="flex items-center gap-1.5">
@@ -867,7 +867,7 @@ function LayoutBuilderInner() {
         )}
         <span>{modeLabel}</span>
         {mode.kind !== "idle" && (
-          <button onClick={() => { setMode({ kind: "idle" }); setHoverCell(null) }} className="rounded-md bg-zinc-800 px-2.5 py-0.5 text-[10px] text-zinc-400 hover:bg-zinc-700 border border-zinc-700">
+          <button onClick={() => { setMode({ kind: "idle" }); setHoverCell(null) }} className="rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-0.5 text-[10px] text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700">
             Cancel (Esc)
           </button>
         )}
@@ -878,7 +878,12 @@ function LayoutBuilderInner() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <TilePalette disabled={save.saving} onAddTile={addTile} onStartDrag={handlePaletteDragStart} />
+        <TilePalette
+          disabled={save.saving}
+          onAddTile={addTile}
+          onStartDrag={handlePaletteDragStart}
+          activeDragType={mode.kind === "palette-drop" ? mode.tileType : null}
+        />
 
         <BuilderCanvas ref={gridRef}
           tiles={tiles} notices={notices} spec={spec}
@@ -897,7 +902,7 @@ function LayoutBuilderInner() {
         />
 
         {/* Right inspector */}
-        <aside className="flex w-64 flex-shrink-0 flex-col border-l border-zinc-800 overflow-y-auto">
+        <aside className="flex w-64 flex-shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800 overflow-y-auto">
           {singleSelected ? (
             <div className="p-3">
               <TileInspector
@@ -931,7 +936,7 @@ function LayoutBuilderInner() {
             </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
-              <div className="rounded-xl bg-zinc-800/30 p-4 border border-dashed border-zinc-800">
+              <div className="rounded-xl bg-zinc-100/30 dark:bg-zinc-800/30 p-4 border border-dashed border-zinc-200 dark:border-zinc-800">
                 <svg className="h-8 w-8 text-zinc-700 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
                 </svg>

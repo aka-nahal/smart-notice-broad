@@ -48,12 +48,12 @@ export function ContextMenu({
   return (
     <div
       ref={ref}
-      className="fixed z-[200] min-w-[200px] rounded-xl border border-zinc-700/80 bg-zinc-900/95 py-1 shadow-2xl backdrop-blur-md animate-in fade-in-0 zoom-in-95 duration-100"
+      className="fixed z-[200] min-w-[200px] rounded-xl border border-zinc-300/80 dark:border-zinc-700/80 bg-white/95 dark:bg-zinc-900/95 py-1 shadow-2xl backdrop-blur-md animate-in fade-in-0 zoom-in-95 duration-100"
       style={{ left: clampedX, top: clampedY }}
     >
       {items.map((item, i) =>
         item.separator ? (
-          <div key={i} className="my-1 mx-2 border-t border-zinc-800/80" />
+          <div key={i} className="my-1 mx-2 border-t border-zinc-200/80 dark:border-zinc-800/80" />
         ) : (
           <button
             key={i}
@@ -62,7 +62,7 @@ export function ContextMenu({
             className={`group flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors disabled:opacity-30 ${
               item.danger
                 ? "text-red-400 hover:bg-red-500/10"
-                : "text-zinc-300 hover:bg-zinc-800/80"
+                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80"
             }`}
           >
             {item.icon && (
@@ -70,7 +70,7 @@ export function ContextMenu({
             )}
             <span className="flex-1">{item.label}</span>
             {item.shortcut && (
-              <kbd className="ml-2 rounded bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-500 font-mono">{item.shortcut}</kbd>
+              <kbd className="ml-2 rounded bg-zinc-100/80 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-500 font-mono">{item.shortcut}</kbd>
             )}
           </button>
         ),

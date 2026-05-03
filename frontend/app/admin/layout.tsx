@@ -12,7 +12,6 @@ const NAV_ITEMS = [
   { href: "/admin/media", label: "Media", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { href: "/admin/timetables", label: "Timetables", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { href: "/admin/teachers", label: "Teachers", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
-  { href: "/admin/sensors", label: "Sensors", icon: "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" },
   { href: "/admin/settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" },
 ]
 
@@ -54,13 +53,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside className="flex w-60 flex-shrink-0 flex-col border-r border-zinc-200/80 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-900/50 backdrop-blur-xl">
         <div className="flex items-center gap-2.5 border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 py-4">
-          <div className="relative h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/30 gpu">
-            <span className="text-sm font-bold text-white">R</span>
-            <span className="absolute inset-0 rounded-xl bg-white/20 opacity-0 hover:opacity-100 transition-opacity" />
+          <div className="relative h-9 w-9 shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/runanet-mark-mono.png"  alt="RunaNet" className="block dark:hidden h-9 w-9 object-contain" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/runanet-mark-color.png" alt="RunaNet" className="hidden dark:block h-9 w-9 object-contain" />
           </div>
           <div className="min-w-0">
             <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">RunaNet</h1>
-            <p className="text-[10px] text-zinc-500 truncate">Smart Notice Board</p>
+            <p className="text-[10px] text-zinc-500 truncate">by FutureForge Studios</p>
           </div>
         </div>
 
@@ -102,6 +103,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <NavIcon path="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             Live Display &nearr;
           </Link>
+          <p className="px-3 pt-3 pb-1 text-[9px] leading-relaxed text-zinc-500 dark:text-zinc-600">
+            <span className="font-semibold text-zinc-600 dark:text-zinc-500">RunaNet</span> &middot; v1.0
+            <br />by FutureForge Studios
+            <br /><span className="text-zinc-500/70 dark:text-zinc-700">Private Limited</span>
+          </p>
         </div>
       </aside>
 

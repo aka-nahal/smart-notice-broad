@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { DisplayCanvas } from "@/components/display-canvas"
-import { LockScreen } from "@/components/lock-screen"
 
 const PRESENCE_POLL_MS = 1500
 
@@ -15,7 +14,7 @@ type PresenceState = {
 }
 
 export default function DisplayPage() {
-  const [presence, setPresence] = useState<PresenceState | null>(null)
+  const [looking, setLooking] = useState<boolean>(true)
 
   // Report screen resolution to the backend so the builder can auto-assign grid
   useEffect(() => {
@@ -30,7 +29,9 @@ export default function DisplayPage() {
     }).catch(() => {/* non-critical */})
   }, [])
 
-  // Poll presence state so the lock screen lifts when a viewer is detected.
+  // Poll presence — used only to drive the OS-level wake lock now. The visible
+  // lock-screen overlay is handled by the configurable ScreenSaver inside the
+  // DisplayCanvas, which honors the admin's "Screen Saver" settings.
   useEffect(() => {
     let cancelled = false
     async function tick() {
@@ -38,9 +39,9 @@ export default function DisplayPage() {
         const res = await fetch("/api/presence", { cache: "no-store" })
         if (!res.ok) return
         const data: PresenceState = await res.json()
-        if (!cancelled) setPresence(data)
+        if (!cancelled) setLooking(!data.enabled || data.looking)
       } catch {
-        /* detector may not be running — just leave lock screen hidden */
+        /* detector may not be running — keep wake lock optimistic */
       }
     }
     tick()
@@ -48,17 +49,10 @@ export default function DisplayPage() {
     return () => { cancelled = true; clearInterval(id) }
   }, [])
 
-  // Lock screen only engages when presence tracking is actively enabled AND
-  // the detector reports nobody looking. Otherwise the notices stay on screen.
-  const showLock = !!presence && presence.enabled && !presence.looking
-  const looking = !!presence?.looking
-
   // Screen Wake Lock: as long as someone is looking at the display, hold an
-  // OS-level wake lock so the monitor doesn't blank. Release it when they
-  // walk away - the lock screen itself is fine to let the system sleep.
+  // OS-level wake lock so the monitor doesn't blank.
   useEffect(() => {
     const nav = typeof navigator !== "undefined" ? navigator : undefined
-    // Feature-detect: Screen Wake Lock API is in Chromium/Edge/Safari 16+.
     const wl = (nav as unknown as { wakeLock?: { request: (t: "screen") => Promise<WakeLockSentinel> } })?.wakeLock
     if (!wl) return
 
@@ -68,11 +62,9 @@ export default function DisplayPage() {
     async function acquire() {
       try {
         sentinel = await wl!.request("screen")
-        // Chromium drops the lock if the tab loses visibility - reacquire on
-        // return so a brief focus swap doesn't let the monitor blank.
         sentinel?.addEventListener("release", () => { sentinel = null })
       } catch {
-        /* user-gesture or policy refused - best effort */
+        /* user-gesture or policy refused — best effort */
       }
     }
 
@@ -99,7 +91,6 @@ export default function DisplayPage() {
     // force-dark keeps the display board dark regardless of admin theme preference
     <div className="force-dark fixed inset-0">
       <DisplayCanvas />
-      <LockScreen visible={showLock} />
     </div>
   )
 }

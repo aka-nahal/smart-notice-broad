@@ -45,7 +45,7 @@ export function SettingsTab() {
   if (loading) {
     return (
       <div className="flex h-32 items-center justify-center">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 dark:border-zinc-700 border-t-blue-400" />
       </div>
     )
   }
@@ -53,13 +53,13 @@ export function SettingsTab() {
   return (
     <div className="max-w-2xl">
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-zinc-100">Display format</h2>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Display format</h2>
         <p className="text-xs text-zinc-500 mt-0.5">
           Controls how teacher status & schedule cards render on display screens.
         </p>
       </div>
 
-      <div className="space-y-5 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div className="space-y-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/40 dark:bg-zinc-900/40 p-5">
         {/* Time format */}
         <Row label="Time format" hint="How period start/end times are displayed.">
           <div className="flex gap-2">
@@ -69,7 +69,7 @@ export function SettingsTab() {
                 className={`rounded-md px-3 py-1.5 text-xs font-medium border ${
                   data.timeFormat === opt
                     ? "bg-blue-600 border-blue-500 text-white"
-                    : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"
+                    : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 {opt === "24h" ? "24-hour (14:30)" : "12-hour (2:30 PM)"}
@@ -87,7 +87,7 @@ export function SettingsTab() {
                 className={`rounded-md px-3 py-1.5 text-xs font-medium border capitalize ${
                   data.cardStyle === opt
                     ? "bg-blue-600 border-blue-500 text-white"
-                    : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"
+                    : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
                 {opt}
@@ -96,7 +96,7 @@ export function SettingsTab() {
           </div>
         </Row>
 
-        <hr className="border-zinc-800" />
+        <hr className="border-zinc-200 dark:border-zinc-800" />
 
         <Toggle
           label="Show subject" hint="Include the subject name on the teacher card."
@@ -137,7 +137,7 @@ function Row({
   return (
     <div className="flex items-start justify-between gap-6">
       <div className="min-w-0">
-        <p className="text-sm text-zinc-200">{label}</p>
+        <p className="text-sm text-zinc-800 dark:text-zinc-200">{label}</p>
         {hint && <p className="text-[11px] text-zinc-500 mt-0.5">{hint}</p>}
       </div>
       <div className="shrink-0">{children}</div>
@@ -153,7 +153,7 @@ function Toggle({
       <button
         onClick={() => onChange(!value)}
         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-          value ? "bg-blue-600" : "bg-zinc-700"
+          value ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-700"
         }`}
       >
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${

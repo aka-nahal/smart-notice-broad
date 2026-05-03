@@ -13,21 +13,24 @@ export interface NoticeDTO {
 }
 
 export interface TileConfig {
-  // Styling
+  theme?: "light" | "dark" | "auto"
+  zoom?: number
   fontFamily?: string
   titleSize?: number
   bodySize?: number
   bgColor?: string
   textColor?: string
-  // Widget content
   tickerText?: string
   bannerTitle?: string
   bannerSubtitle?: string
   imageUrl?: string
   imageAlt?: string
-  // Clock
-  clockTimezone?: string
+  clockStyle?: "digital" | "analog" | "minimal" | "flip" | "word"
   clockFormat?: "12h" | "24h"
+  clockShowSeconds?: boolean | string
+  clockShowDate?: boolean | string
+  clockTimezone?: string
+  clockDateFormat?: "short" | "long" | "iso"
 }
 
 export interface TileDTO {
@@ -40,8 +43,6 @@ export interface TileDTO {
   grid_h: number;
   z_index: number;
   priority_weight: number;
-  refresh_interval_sec: number | null;
-  animation_style: string | null;
   config_json: string | null;
   is_emergency_slot: boolean;
   notice_id: number | null;

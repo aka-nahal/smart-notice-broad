@@ -14,7 +14,7 @@ function ToolBtn({ children, onClick, disabled, title, active }: {
   return (
     <button onClick={onClick} disabled={disabled} title={title}
       className={`flex items-center justify-center rounded-md h-7 w-7 transition-colors disabled:opacity-30 ${
-        active ? "bg-blue-500/15 text-blue-400" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+        active ? "bg-blue-500/15 text-blue-400" : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200"
       }`}>
       {children}
     </button>
@@ -35,7 +35,7 @@ export function AlignToolbar({ count, onAlignLeft, onAlignRight, onAlignTop, onA
   if (count < 2) return null
 
   return (
-    <div className="flex items-center gap-0.5 border-b border-zinc-800 bg-zinc-900/30 px-4 py-1">
+    <div className="flex items-center gap-0.5 border-b border-zinc-200 dark:border-zinc-800 bg-white/30 dark:bg-zinc-900/30 px-4 py-1">
       <span className="mr-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Align</span>
 
       <ToolBtn onClick={onAlignLeft} title="Align left edges">
@@ -51,7 +51,7 @@ export function AlignToolbar({ count, onAlignLeft, onAlignRight, onAlignTop, onA
         <AlignIcon d="M1 14h14M4 3v8M8 5v6M12 1v10" />
       </ToolBtn>
 
-      <div className="mx-1.5 h-4 w-px bg-zinc-800" />
+      <div className="mx-1.5 h-4 w-px bg-zinc-100 dark:bg-zinc-800" />
 
       <span className="mr-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Distribute</span>
 
@@ -62,7 +62,7 @@ export function AlignToolbar({ count, onAlignLeft, onAlignRight, onAlignTop, onA
         <AlignIcon d="M3 1h10M5 5h6M5 11h6M3 15h10" />
       </ToolBtn>
 
-      <div className="mx-1.5 h-4 w-px bg-zinc-800" />
+      <div className="mx-1.5 h-4 w-px bg-zinc-100 dark:bg-zinc-800" />
 
       <span className="text-[10px] text-zinc-600 tabular-nums">{count} selected</span>
     </div>

@@ -112,6 +112,36 @@ body {
   will-change: transform, opacity;
 }
 
+/* ---------------------------------------------------------------------------
+   BrandedLoader — gentle logo "breath" + 3-dot wave loader.
+--------------------------------------------------------------------------- */
+@keyframes loader-breath {
+  0%, 100% { transform: scale(1);    filter: drop-shadow(0 6px 24px rgb(244 114 95 / 0.18)); }
+  50%      { transform: scale(1.04); filter: drop-shadow(0 12px 36px rgb(244 114 95 / 0.32)); }
+}
+.animate-loader-breath {
+  animation: loader-breath 3.2s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+@keyframes loader-dot {
+  0%, 60%, 100% { transform: translate3d(0, 0, 0);    opacity: 0.35; }
+  30%           { transform: translate3d(0, -6px, 0); opacity: 1; }
+}
+.animate-loader-dot {
+  animation: loader-dot 1.05s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes loader-bg-drift {
+  0%, 100% { transform: translate3d(0, 0, 0)        scale(1); }
+  50%      { transform: translate3d(2%, -1.5%, 0)   scale(1.08); }
+}
+.animate-loader-bg {
+  animation: loader-bg-drift 14s ease-in-out infinite;
+  will-change: transform;
+}
+
 /* Stack tile (Apple-style widget stack) — incoming child animation. */
 @keyframes stack-fade {
   from { opacity: 0; }
@@ -134,6 +164,58 @@ body {
 .force-dark {
   color-scheme: dark;
   @apply bg-black text-zinc-100;
+}
+
+/* ---------------------------------------------------------------------------
+   Per-tile theme tokens. Wrap a tile in .tile-theme-light or .tile-theme-dark
+   to override colors regardless of the app-level theme. Widgets reference
+   these via var(--tile-fg) etc. so light/dark works per block.
+--------------------------------------------------------------------------- */
+.tile-theme-light {
+  color-scheme: light;
+  --tile-fg: #18181b;
+  --tile-fg-muted: #52525b;
+  --tile-fg-subtle: #71717a;
+  --tile-bg: #ffffff;
+  --tile-card: #f4f4f5;
+  --tile-border: #d4d4d8;
+  --tile-accent: #2563eb;
+}
+.tile-theme-dark {
+  color-scheme: dark;
+  --tile-fg: #ffffff;
+  --tile-fg-muted: #a1a1aa;
+  --tile-fg-subtle: #71717a;
+  --tile-bg: #09090b;
+  --tile-card: #18181b;
+  --tile-border: #3f3f46;
+  --tile-accent: #60a5fa;
+}
+/* Auto theme — fall back to whatever the app theme is. The values used here
+   match .tile-theme-dark (current display default); admin pages override at
+   the html.dark level. */
+.tile-theme-auto {
+  --tile-fg: #ffffff;
+  --tile-fg-muted: #a1a1aa;
+  --tile-fg-subtle: #71717a;
+  --tile-bg: transparent;
+  --tile-card: rgb(24 24 27 / 0.6);
+  --tile-border: #3f3f46;
+  --tile-accent: #60a5fa;
+}
+html.dark .tile-theme-auto, .force-dark .tile-theme-auto {
+  --tile-fg: #ffffff;
+  --tile-fg-muted: #a1a1aa;
+  --tile-fg-subtle: #71717a;
+  --tile-card: rgb(24 24 27 / 0.6);
+  --tile-border: #3f3f46;
+}
+html:not(.dark) .tile-theme-auto:not(.force-dark *) {
+  --tile-fg: #18181b;
+  --tile-fg-muted: #52525b;
+  --tile-fg-subtle: #71717a;
+  --tile-card: #f4f4f5;
+  --tile-border: #d4d4d8;
 }
 
 /* Reduced motion: respect user preference. */

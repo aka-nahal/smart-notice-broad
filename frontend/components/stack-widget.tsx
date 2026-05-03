@@ -197,7 +197,6 @@ const TYPE_ICONS: Record<string, string> = {
   carousel: "🎠",
   pdf: "📄",
   emergency: "🚨",
-  sensor: "📡",
   timetable: "📅",
   teacher_status: "👤",
   teachers_list: "👥",

@@ -18,10 +18,8 @@ class TileType(str, Enum):
     TICKER = "ticker"
     BANNER = "banner"
     EMERGENCY = "emergency"
-    SENSOR = "sensor"
     TIMETABLE = "timetable"
     STACK = "stack"
-    CUSTOM = "custom"
 
 
 class Tile(Base):
@@ -45,8 +43,6 @@ class Tile(Base):
     grid_h: Mapped[int] = mapped_column(Integer, default=1)
     z_index: Mapped[int] = mapped_column(Integer, default=0)
     priority_weight: Mapped[int] = mapped_column(Integer, default=0)
-    refresh_interval_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    animation_style: Mapped[str | None] = mapped_column(String(64), nullable=True)
     config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_emergency_slot: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

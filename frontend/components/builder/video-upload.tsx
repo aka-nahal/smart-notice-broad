@@ -184,23 +184,23 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
     <div className="flex flex-col gap-2">
       {/* Current preview */}
       {(previewSrc || ytId) && (
-        <div className="relative h-28 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900">
+        <div className="relative h-28 w-full overflow-hidden rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900">
           {ytId ? (
             <div className="relative h-full w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={youtubeThumbnail(ytId)} alt="" className="h-full w-full object-cover" />
               <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                 <div className="rounded-lg bg-red-600 px-2 py-1 flex items-center gap-1">
-                  <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                  <span className="text-[10px] font-bold text-white">YouTube</span>
+                  <svg className="h-3 w-3 text-zinc-900 dark:text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  <span className="text-[10px] font-bold text-zinc-900 dark:text-white">YouTube</span>
                 </div>
               </div>
-              <span className="absolute bottom-1 left-2 text-[9px] text-white/60 bg-black/50 px-1 rounded">{ytId}</span>
+              <span className="absolute bottom-1 left-2 text-[9px] text-zinc-900 dark:text-white/60 bg-black/50 px-1 rounded">{ytId}</span>
             </div>
           ) : previewSrc ? (
             <>
               <video src={previewSrc} className="h-full w-full object-cover" muted autoPlay loop playsInline preload="auto" />
-              <span className="absolute bottom-1 left-2 text-[9px] text-white/60 bg-black/50 px-1 rounded">
+              <span className="absolute bottom-1 left-2 text-[9px] text-zinc-900 dark:text-white/60 bg-black/50 px-1 rounded">
                 {currentMediaId ? `Media #${currentMediaId}` : "External URL"}
               </span>
             </>
@@ -209,11 +209,11 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
       )}
 
       {/* Tabs */}
-      <div className="flex rounded-lg bg-zinc-800/50 p-0.5 gap-0.5">
+      <div className="flex rounded-lg bg-zinc-100/50 dark:bg-zinc-800/50 p-0.5 gap-0.5">
         {tabs.map((t) => (
           <button key={t} onClick={() => setTab(t)} disabled={disabled}
             className={`flex-1 rounded-md px-1 py-1 text-[9px] font-medium transition-colors ${
-              tab === t ? "bg-zinc-700 text-zinc-200" : "text-zinc-500 hover:text-zinc-300"
+              tab === t ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             } disabled:opacity-50`}>
             {tabLabels[t]}
           </button>
@@ -228,18 +228,18 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
           onDrop={handleDrop}
           onClick={() => !disabled && fileRef.current?.click()}
           className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-5 transition-colors ${
-            dragOver ? "border-pink-400 bg-pink-500/10" : "border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/30"
+            dragOver ? "border-pink-400 bg-pink-500/10" : "border-zinc-300 dark:border-zinc-700 hover:border-zinc-500 dark:hover:border-zinc-500 hover:bg-zinc-100/30 dark:hover:bg-zinc-800/30"
           } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           {uploading ? (
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-pink-400" />
-              <span className="text-xs text-zinc-400">Uploading...</span>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 dark:border-zinc-600 border-t-pink-400" />
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">Uploading...</span>
             </div>
           ) : (
             <>
               <span className="text-2xl">🎬</span>
-              <span className="text-xs text-zinc-400">Drop video here or click to browse</span>
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">Drop video here or click to browse</span>
               <span className="text-[10px] text-zinc-600">MP4, WebM, MOV &middot; Max 100 MB</span>
             </>
           )}
@@ -262,24 +262,24 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
               {library.map((m) => (
                 <button key={m.id} onClick={() => onSelectMedia(m.id)} disabled={disabled}
                   className={`relative aspect-video overflow-hidden rounded-lg border-2 transition-all hover:opacity-90 ${
-                    currentMediaId === m.id ? "border-pink-400 ring-1 ring-pink-400/50" : "border-zinc-700"
+                    currentMediaId === m.id ? "border-pink-400 ring-1 ring-pink-400/50" : "border-zinc-300 dark:border-zinc-700"
                   } disabled:opacity-50`}>
                   <video src={m.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                    <svg className="h-4 w-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                    <svg className="h-4 w-4 text-zinc-900 dark:text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </div>
-                  <div className="absolute bottom-1 right-1 rounded bg-black/60 px-1 py-0.5 text-[7px] text-white/70">
+                  <div className="absolute bottom-1 right-1 rounded bg-black/60 px-1 py-0.5 text-[7px] text-zinc-900 dark:text-white/70">
                     {formatBytes(m.bytes_size)}
                   </div>
                   {currentMediaId === m.id && (
-                    <div className="absolute top-1 right-1 rounded bg-pink-500 px-1 py-0.5 text-[7px] font-bold text-white">SELECTED</div>
+                    <div className="absolute top-1 right-1 rounded bg-pink-500 px-1 py-0.5 text-[7px] font-bold text-zinc-900 dark:text-white">SELECTED</div>
                   )}
                 </button>
               ))}
             </div>
           )}
           <button onClick={loadLibrary} disabled={loadingLib}
-            className="text-[10px] text-zinc-600 hover:text-zinc-400 disabled:opacity-30">
+            className="text-[10px] text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 disabled:opacity-30">
             Refresh library
           </button>
         </div>
@@ -293,7 +293,7 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
             onBlur={applyUrl}
             onKeyDown={(e) => { if (e.key === "Enter") applyUrl() }}
             placeholder="https://example.com/video.mp4"
-            className="w-full rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-pink-500/50 disabled:opacity-50" />
+            className="w-full rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-pink-500/50 disabled:opacity-50" />
           <p className="text-[10px] text-zinc-600">Paste a direct video file URL (.mp4, .webm). Press Enter to apply.</p>
         </div>
       )}
@@ -313,12 +313,12 @@ export function VideoUpload({ currentMediaId, currentVideoUrl, disabled, onSelec
             onBlur={applyYoutube}
             onKeyDown={(e) => { if (e.key === "Enter") applyYoutube() }}
             placeholder="https://youtube.com/watch?v=..."
-            className="w-full rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 outline-none border border-zinc-700 focus:border-red-500/50 disabled:opacity-50 font-mono text-xs" />
+            className="w-full rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 outline-none border border-zinc-300 dark:border-zinc-700 focus:border-red-500/50 disabled:opacity-50 font-mono text-xs" />
           <p className="text-[10px] text-zinc-600">
             Supports: youtube.com/watch, youtu.be, youtube.com/shorts, or just the video ID.
           </p>
           {ytInput && extractYouTubeId(ytInput) && (
-            <div className="rounded-md bg-zinc-800/50 border border-zinc-700 p-2 text-[10px] text-zinc-400">
+            <div className="rounded-md bg-zinc-100/50 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700 p-2 text-[10px] text-zinc-600 dark:text-zinc-400">
               Detected ID: <code className="text-pink-400">{extractYouTubeId(ytInput)}</code>
             </div>
           )}

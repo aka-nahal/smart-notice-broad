@@ -11,8 +11,6 @@ class TileCreate(BaseModel):
     grid_h: int = Field(default=1, ge=1, le=24)
     z_index: int = Field(default=0, ge=0, le=99)
     priority_weight: int = Field(default=0, ge=0, le=100)
-    refresh_interval_sec: int | None = None
-    animation_style: str | None = None
     config_json: str | None = None
     is_emergency_slot: bool = False
     notice_id: int | None = None
@@ -27,8 +25,6 @@ class TileUpdate(BaseModel):
     grid_h: int | None = None
     z_index: int | None = None
     priority_weight: int | None = None
-    refresh_interval_sec: int | None = None
-    animation_style: str | None = None
     config_json: str | None = None
     is_emergency_slot: bool | None = None
     notice_id: int | None = None
@@ -45,8 +41,6 @@ class TileRead(BaseModel):
     grid_h: int
     z_index: int
     priority_weight: int
-    refresh_interval_sec: int | None
-    animation_style: str | None
     config_json: str | None
     is_emergency_slot: bool
     notice_id: int | None
